@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../constants.dart';
 import 'registro_cliente_screen.dart';
 import 'agregar_horario_cita_screen.dart';
+import 'configuracion_screen.dart';
 import '../../home_screen.dart';
 
 class HomeGymScreen extends StatefulWidget {
@@ -181,7 +182,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                 child: _buildStatCard(
                   'Clientes Asistentes',
                   '3',
-                  Icons.person_add,
+                  Icons.how_to_reg,
                   Colors.green,
                 ),
               ),
@@ -194,7 +195,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'Equipos en Uso',
+                  'Equipos en Activos',
                   '8',
                   Icons.fitness_center,
                   Colors.orange,
@@ -254,7 +255,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   'Configuración',
                   Icons.settings,
                   Colors.purple,
-                  () => _mostrarEnDesarrollo('Configuración'),
+                  () => _navegarAConfiguracion(),
                 ),
               ],
             ),
@@ -489,6 +490,13 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AgregarHorarioCitaScreen()),
+    );
+  }
+
+  void _navegarAConfiguracion() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ConfiguracionScreen()),
     );
   }
 }

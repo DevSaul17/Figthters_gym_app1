@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../constants.dart';
+import 'registro_membresia_screen.dart';
 
 class RegistroClienteScreen extends StatefulWidget {
   const RegistroClienteScreen({super.key});
@@ -23,19 +24,6 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
   final _condicionFisicaController = TextEditingController();
 
   String _genero = 'Masculino';
-  String _planSeleccionado = 'Básico';
-  String _objetivo = 'Pérdida de peso';
-
-  final List<String> _planes = ['Básico', 'Intermedio', 'Premium', 'VIP'];
-
-  final List<String> _objetivos = [
-    'Pérdida de peso',
-    'Ganancia muscular',
-    'Tonificación',
-    'Resistencia',
-    'Fuerza',
-    'Rehabilitación',
-  ];
 
   @override
   void dispose() {
@@ -237,21 +225,21 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
               _buildTextField(
                 controller: _celularController,
                 label: 'Celular',
-                hint: 'Ej: 3001234567',
+                hint: 'Ej: 987654321',
                 icon: Icons.phone,
                 keyboardType: TextInputType.phone,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Por favor ingresa el número de celular';
                   }
-                  if (!RegExp(r'^[0-9]{10}$').hasMatch(value)) {
-                    return 'El celular debe tener 10 dígitos';
+                  if (!RegExp(r'^[0-9]{9}$').hasMatch(value)) {
+                    return 'El celular debe tener 9 dígitos';
                   }
                   return null;
                 },
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
+                  LengthLimitingTextInputFormatter(9),
                 ],
               ),
 
@@ -409,24 +397,23 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
                   Expanded(
                     child: _buildTextField(
                       controller: _tallaController,
-                      label: 'Talla (m)',
-                      hint: '1.75',
+                      label: 'Talla (cm)',
+                      hint: '175',
                       icon: Icons.height,
-                      keyboardType: TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      keyboardType: TextInputType.number,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Ingresa la talla';
                         }
-                        double? talla = double.tryParse(value);
-                        if (talla == null || talla < 1.40 || talla > 2.10) {
-                          return 'Talla entre 1.40-2.10 m';
+                        int? talla = int.tryParse(value);
+                        if (talla == null || talla < 140 || talla > 210) {
+                          return 'Talla entre 140-210 cm';
                         }
                         return null;
                       },
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3),
                       ],
                     ),
                   ),
@@ -487,117 +474,13 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
                 ],
               ),
 
-              SizedBox(height: 20),
-
-              // Plan y objetivo
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  // ignore: deprecated_member_use
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  // ignore: deprecated_member_use
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.fitness_center, color: Colors.green, size: 30),
-                    SizedBox(width: 12),
-                    Text(
-                      'Plan y Objetivos',
-                      style: AppTextStyles.mainText.copyWith(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 20),
-
-              // Plan
-              Text(
-                'Plan de Membresía',
-                style: AppTextStyles.mainText.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _planSeleccionado,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.card_membership,
-                    color: AppColors.primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                ),
-                items: _planes.map((plan) {
-                  return DropdownMenuItem<String>(
-                    value: plan,
-                    child: Text(plan),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _planSeleccionado = value!;
-                  });
-                },
-              ),
-
-              SizedBox(height: 16),
-
-              // Objetivo
-              Text(
-                'Objetivo Principal',
-                style: AppTextStyles.mainText.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _objetivo,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(Icons.flag, color: AppColors.primary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                ),
-                items: _objetivos.map((objetivo) {
-                  return DropdownMenuItem<String>(
-                    value: objetivo,
-                    child: Text(objetivo),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _objetivo = value!;
-                  });
-                },
-              ),
-
               SizedBox(height: 30),
 
-              // Botón Registrar
+              // Botón Siguiente
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _registrarCliente,
+                  onPressed: _continuarAMembresia,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
@@ -605,13 +488,20 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text(
-                    'Registrar Cliente',
-                    style: AppTextStyles.buttonText.copyWith(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Siguiente',
+                        style: AppTextStyles.buttonText.copyWith(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(Icons.arrow_forward, color: Colors.white),
+                    ],
                   ),
                 ),
               ),
@@ -667,76 +557,27 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
     );
   }
 
-  void _registrarCliente() {
+  void _continuarAMembresia() {
     if (_formKey.currentState!.validate()) {
-      // Calcular IMC
-      double peso = double.parse(_pesoController.text);
-      double talla = double.parse(_tallaController.text);
-      double imc = peso / (talla * talla);
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          icon: Icon(Icons.check_circle, color: Colors.green, size: 50),
-          title: Text(
-            'Cliente Registrado',
-            style: AppTextStyles.mainText.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
+      // Navegar a RegistroMembresiaScreen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RegistroMembresiaScreen(
+            datosCliente: {
+              'dni': _dniController.text,
+              'nombre': _nombreController.text,
+              'apellidos': _apellidosController.text,
+              'fechaNacimiento': _fechaNacimientoController.text,
+              'celular': _celularController.text,
+              'email': _emailController.text,
+              'genero': _genero,
+              'edad': _edadController.text,
+              'peso': _pesoController.text,
+              'talla': _tallaController.text,
+              'condicionFisica': _condicionFisicaController.text,
+            },
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${_nombreController.text} ${_apellidosController.text}',
-                style: AppTextStyles.mainText.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 8),
-              Text(
-                'DNI: ${_dniController.text}',
-                style: AppTextStyles.contactText.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                'Fecha Nac: ${_fechaNacimientoController.text}',
-                style: AppTextStyles.contactText,
-              ),
-              Text(
-                'Plan: $_planSeleccionado',
-                style: AppTextStyles.contactText,
-              ),
-              Text(
-                'IMC: ${imc.toStringAsFixed(1)}',
-                style: AppTextStyles.contactText,
-              ),
-              Text('Objetivo: $_objetivo', style: AppTextStyles.contactText),
-              if (_condicionFisicaController.text.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Condición: ${_condicionFisicaController.text}',
-                    style: AppTextStyles.contactText.copyWith(fontSize: 12),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Cerrar dialog
-                Navigator.pop(context); // Volver al home gym
-              },
-              child: Text('Continuar'),
-            ),
-          ],
         ),
       );
     }
