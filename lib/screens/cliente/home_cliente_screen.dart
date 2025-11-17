@@ -20,6 +20,7 @@ class HomeClienteScreen extends StatefulWidget {
 
 class _HomeClienteScreenState extends State<HomeClienteScreen> {
   int _selectedIndex = 0;
+  final int _rachaDias = 15; // Días consecutivos de entrenamiento
 
   final List<Map<String, dynamic>> _carouselItems = [
     {
@@ -209,8 +210,11 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
           // Carousel horizontal
           CarruselWidget(
             items: _carouselItems,
-            onItemTap: (String action) =>
-                NavigationService.manejarCarruselTap(context, action),
+            onItemTap: (String action) => NavigationService.manejarCarruselTap(
+              context,
+              action,
+              widget.nombreUsuario,
+            ),
           ),
 
           SizedBox(height: 20),
@@ -244,15 +248,15 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
                 MenuCardWidget(
                   icon: Icons.fitness_center,
                   title: 'Mi Plan',
-                  subtitle: 'Rutinas y ejercicios',
+                  subtitle: '',
                   image: 'assets/img1.jpg',
                   onTap: () => _navegarAMiPlan(context),
                 ),
                 MenuCardWidget(
-                  icon: Icons.show_chart,
-                  title: 'Progreso',
-                  subtitle: 'Ver mi evolución',
-                  onTap: () => _navegarAProgreso(context),
+                  icon: Icons.local_fire_department,
+                  title: 'Racha',
+                  subtitle: ' $_rachaDias',
+                  onTap: () {}, // Función vacía - no hace nada
                 ),
                 MenuCardWidget(
                   icon: Icons.person,
@@ -284,15 +288,6 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Función "Mi Plan" en desarrollo...'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
-  void _navegarAProgreso(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Función "Progreso" en desarrollo...'),
         backgroundColor: Colors.orange,
       ),
     );

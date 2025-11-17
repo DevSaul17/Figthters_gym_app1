@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../calendario_screen.dart';
+import '../entrenamientos_personalizados_screen.dart';
 
 class NavigationService {
   static void navegarACalendario(BuildContext context, String nombreUsuario) {
@@ -11,11 +12,15 @@ class NavigationService {
     );
   }
 
-  static void navegarAEntrenamientos(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Función "Entrenamientos" en desarrollo...'),
-        backgroundColor: Colors.orange,
+  static void navegarAEntrenamientos(
+    BuildContext context,
+    String nombreUsuario,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            EntrenamientosPersonalizadosScreen(nombreUsuario: nombreUsuario),
       ),
     );
   }
@@ -65,10 +70,14 @@ class NavigationService {
     );
   }
 
-  static void manejarCarruselTap(BuildContext context, String accion) {
+  static void manejarCarruselTap(
+    BuildContext context,
+    String accion,
+    String nombreUsuario,
+  ) {
     switch (accion) {
       case 'entrenamientos':
-        navegarAEntrenamientos(context);
+        navegarAEntrenamientos(context, nombreUsuario);
         break;
       case 'nutricion':
         navegarANutricion(context);
