@@ -22,7 +22,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   String _timeDisplay = "00:00:00";
 
   // Variables del temporizador
-  late Timer _countdownTimer;
+  Timer? _countdownTimer;
   bool _isCountdownRunning = false;
   int _totalSeconds = 0;
   int _remainingSeconds = 0;
@@ -100,8 +100,8 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   @override
   void dispose() {
     _timer.cancel();
-    if (_countdownTimer.isActive) {
-      _countdownTimer.cancel();
+    if (_countdownTimer?.isActive == true) {
+      _countdownTimer?.cancel();
     }
     _pesoController.dispose();
     _alturaController.dispose();
@@ -167,7 +167,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   void _startStopCountdown() {
     setState(() {
       if (_isCountdownRunning) {
-        _countdownTimer.cancel();
+        _countdownTimer?.cancel();
         _isCountdownRunning = false;
       } else {
         if (_remainingSeconds > 0) {
@@ -187,7 +187,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
         _remainingSeconds--;
         _countdownDisplay = _formatCountdownTime(_remainingSeconds);
       } else {
-        _countdownTimer.cancel();
+        _countdownTimer?.cancel();
         _isCountdownRunning = false;
         _showTimeUpDialog();
       }
@@ -196,8 +196,8 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
 
   void _resetCountdown() {
     setState(() {
-      if (_countdownTimer.isActive) {
-        _countdownTimer.cancel();
+      if (_countdownTimer?.isActive == true) {
+        _countdownTimer?.cancel();
       }
       _isCountdownRunning = false;
       _remainingSeconds = _totalSeconds;
@@ -1402,8 +1402,8 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
       _selectedMinutes = minutes;
       _selectedSecondsExtra = seconds;
       _updateCountdownDisplay();
-      if (_countdownTimer.isActive) {
-        _countdownTimer.cancel();
+      if (_countdownTimer?.isActive == true) {
+        _countdownTimer?.cancel();
         _isCountdownRunning = false;
       }
     });
@@ -1986,40 +1986,47 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
             ),
           ],
           border: Border.all(color: Colors.grey[200]!),
+          image: image != null
+              ? DecorationImage(image: AssetImage(image), fit: BoxFit.cover)
+              : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            image != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      image,
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : Icon(icon, size: 40, color: AppColors.primary),
-            SizedBox(height: 12),
-            Text(
-              title,
-              style: AppTextStyles.contactText.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+        child: Container(
+          decoration: image != null
+              ? BoxDecoration(
+                  // ignore: deprecated_member_use
+                  color: Colors.black.withOpacity(
+                    0.3,
+                  ), // Overlay semitransparente
+                  borderRadius: BorderRadius.circular(15),
+                )
+              : null,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              image == null
+                  ? Icon(icon, size: 40, color: AppColors.primary)
+                  : SizedBox.shrink(),
+              SizedBox(height: image == null ? 12 : 8),
+              Text(
+                title,
+                style: AppTextStyles.contactText.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: image != null ? Colors.white : null,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: AppTextStyles.contactText.copyWith(
-                fontSize: 12,
-                color: Colors.grey[600],
+              SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: AppTextStyles.contactText.copyWith(
+                  fontSize: 12,
+                  color: image != null ? Colors.white : Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

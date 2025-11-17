@@ -73,7 +73,7 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
         ),
         child: Container(
           // ignore: deprecated_member_use
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withOpacity(0),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppDimensions.horizontalPadding),
             child: Form(
@@ -262,7 +262,10 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
                   // Género
                   Text(
                     'GÉNERO',
-                    style: AppTextStyles.mainText.copyWith(fontSize: 16),
+                    style: AppTextStyles.mainText.copyWith(
+                      fontSize: 16,
+                      color: const Color.fromARGB(255, 255, 255, 255),
+                    ),
                   ),
 
                   SizedBox(height: 12),
@@ -280,7 +283,10 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
                   // Objetivos/Necesidad
                   Text(
                     'OBJETIVOS / NECESIDAD',
-                    style: AppTextStyles.mainText.copyWith(fontSize: 16),
+                    style: AppTextStyles.mainText.copyWith(
+                      fontSize: 16,
+                      color: const Color.fromARGB(255, 255, 255, 255),
+                    ),
                   ),
 
                   SizedBox(height: 12),
@@ -323,7 +329,10 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
                   // Cita Seleccionada
                   Text(
                     'CITA SELECCIONADA',
-                    style: AppTextStyles.mainText.copyWith(fontSize: 16),
+                    style: AppTextStyles.mainText.copyWith(
+                      fontSize: 16,
+                      color: const Color.fromARGB(255, 255, 255, 255),
+                    ),
                   ),
 
                   SizedBox(height: 8),
@@ -332,7 +341,7 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
                     '${widget.horarioSeleccionado['dia']} ${widget.horarioSeleccionado['fecha']} ${widget.horarioSeleccionado['hora']}',
                     style: AppTextStyles.contactText.copyWith(
                       fontSize: 14,
-                      color: Colors.grey[700],
+                      color: const Color.fromARGB(255, 255, 255, 255),
                     ),
                   ),
 
@@ -390,7 +399,7 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
           label,
           style: AppTextStyles.contactText.copyWith(
             fontSize: 14,
-            color: Colors.black,
+            color: const Color.fromARGB(255, 255, 255, 255),
             fontWeight: FontWeight.w500,
           ),
         ),

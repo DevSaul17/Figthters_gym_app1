@@ -24,12 +24,7 @@ class MensajeScreen extends StatelessWidget {
           'Confirmación',
           style: AppTextStyles.appBarTitle.copyWith(color: Colors.white),
         ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(AppDimensions.horizontalPadding),
@@ -107,18 +102,6 @@ class MensajeScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
 
-                    SizedBox(height: 30),
-
-                    Text(
-                      'Tu cita gratuita ha sido confirmada correctamente',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-
                     SizedBox(height: 20),
 
                     Text(
@@ -127,17 +110,7 @@ class MensajeScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
 
-                    SizedBox(height: 30),
-
-                    Text(
-                      'Nos vemos pronto — prepárate para una experiencia que te hará sentir más fuerte, más enfocado y más motivado que nunca.',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                    SizedBox(height: 20),
                   ],
                 ),
               ),
