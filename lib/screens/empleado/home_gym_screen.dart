@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../constants.dart';
+import '../../services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'registro_cliente_screen.dart';
 import 'agregar_horario_cita_screen.dart';
 import 'configuracion_screen.dart';
@@ -16,6 +19,7 @@ class HomeGymScreen extends StatefulWidget {
 
 class _HomeGymScreenState extends State<HomeGymScreen> {
   int _selectedIndex = 0;
+  final FirestoreService _firestore = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
@@ -292,27 +296,218 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
   }
 
   Widget _buildCitas() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_today,
-            size: 80,
-            // ignore: deprecated_member_use
-            color: AppColors.primary.withOpacity(0.6),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Gestión de Citas',
-            style: AppTextStyles.mainText.copyWith(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text('Módulo en desarrollo...', style: AppTextStyles.contactText),
-        ],
+    // Mostrar los prospectos como tarjetas tipo cita
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: _firestore.streamCollection(
+          'prospectos',
+          queryBuilder: (q) => q.orderBy('creadoEn', descending: true),
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error al cargar prospectos'));
+          }
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return Center(
+              child: Text(
+                'No hay prospectos registrados',
+                style: AppTextStyles.contactText,
+              ),
+            );
+          }
+
+          return ListView.separated(
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+
+              // Nombre y teléfono
+              final nombre = (data['nombre'] ?? '') as String;
+              final apellidos = (data['apellidos'] ?? '') as String;
+              final celular = (data['celular'] ?? '') as String;
+
+              // Fecha de la cita enlazada (si existe)
+              String citaTexto = 'Sin cita';
+              final rawCita = data['citaFecha'];
+              if (rawCita != null) {
+                DateTime dt;
+                if (rawCita is Timestamp) {
+                  dt = rawCita.toDate();
+                } else if (rawCita is DateTime)
+                  // ignore: curly_braces_in_flow_control_structures
+                  dt = rawCita;
+                else if (rawCita is String) {
+                  try {
+                    dt = DateTime.parse(rawCita);
+                  } catch (e) {
+                    dt = DateTime.now();
+                  }
+                } else {
+                  dt = DateTime.now();
+                }
+                try {
+                  citaTexto = DateFormat(
+                    "d 'de' MMMM 'de' y, h:mm a",
+                    'es',
+                  ).format(dt.toLocal());
+                } catch (e) {
+                  citaTexto = dt.toLocal().toString();
+                }
+              }
+
+              return Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      // ignore: deprecated_member_use
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.person, color: AppColors.primary),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$nombre $apellidos',
+                            style: AppTextStyles.mainText.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Celular: $celular',
+                            style: AppTextStyles.contactText,
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Cita: $citaTexto',
+                            style: AppTextStyles.contactText.copyWith(
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Mostrar todos los datos del prospecto en un diálogo
+                        showDialog(
+                          context: context,
+                          builder: (_) {
+                            // Helper local para formatear fechas (Timestamp/DateTime/String)
+                            String formatDate(dynamic raw) {
+                              if (raw == null) return '-';
+                              DateTime dt;
+                              if (raw is Timestamp) {
+                                dt = raw.toDate();
+                              } else if (raw is DateTime)
+                                // ignore: curly_braces_in_flow_control_structures
+                                dt = raw;
+                              else if (raw is String) {
+                                try {
+                                  dt = DateTime.parse(raw);
+                                } catch (e) {
+                                  return raw.toString();
+                                }
+                              } else {
+                                return raw.toString();
+                              }
+                              try {
+                                return DateFormat(
+                                  "d 'de' MMMM 'de' y, h:mm a",
+                                  'es',
+                                ).format(dt.toLocal());
+                              } catch (e) {
+                                return dt.toLocal().toString();
+                              }
+                            }
+
+                            final creadoEnRaw = data['creadoEn'];
+                            final creadoEn = formatDate(creadoEnRaw);
+                            final citaFechaRaw = data['citaFecha'];
+                            final citaFecha = formatDate(citaFechaRaw);
+
+                            // Build a scrollable list of fields
+                            return AlertDialog(
+                              title: Text('$nombre $apellidos'),
+                              content: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _detailRow('Nombre', nombre),
+                                    _detailRow('Apellidos', apellidos),
+                                    _detailRow('Celular', celular),
+                                    _detailRow(
+                                      'Edad',
+                                      (data['edad']?.toString() ?? '-'),
+                                    ),
+                                    _detailRow(
+                                      'Género',
+                                      (data['genero'] ?? '-'),
+                                    ),
+                                    _detailRow(
+                                      'Objetivo',
+                                      (data['objetivo'] ?? '-'),
+                                    ),
+                                    _detailRow(
+                                      'Peso',
+                                      (data['peso']?.toString() ?? '-'),
+                                    ),
+                                    _detailRow(
+                                      'Talla',
+                                      (data['talla']?.toString() ?? '-'),
+                                    ),
+                                    _detailRow('Cita Fecha', citaFecha),
+                                    _detailRow('Creado En', creadoEn),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text('Cerrar'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                      ),
+                      child: Text('Ver', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -497,6 +692,25 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ConfiguracionScreen()),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
 }

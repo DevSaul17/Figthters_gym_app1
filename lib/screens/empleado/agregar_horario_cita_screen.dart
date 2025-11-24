@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../../constants.dart';
+import '../../services/firestore_service.dart';
 
 class AgregarHorarioCitaScreen extends StatefulWidget {
   const AgregarHorarioCitaScreen({super.key});
@@ -10,8 +13,9 @@ class AgregarHorarioCitaScreen extends StatefulWidget {
 }
 
 class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
-  // Lista de citas programadas (inicialmente vacía)
-  final List<Map<String, dynamic>> _citasProgramadas = [];
+  // Firestore service
+  final FirestoreService _firestore = FirestoreService();
+  int _reloadKey = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -37,16 +41,64 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
           },
         ),
       ),
-      body: _citasProgramadas.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _citasProgramadas.length,
-              itemBuilder: (context, index) {
-                final cita = _citasProgramadas[index];
-                return _buildCitaItem(cita, index);
-              },
-            ),
+      body: StreamBuilder<QuerySnapshot>(
+        key: ValueKey(_reloadKey),
+        stream: _firestore.streamCollection(
+          'citas',
+          // Order by the appointment `fecha` so documents with a `fecha` field
+          // (Timestamp) are listed by appointment date/time. Using 'fecha'
+          // is safer because some documents may not have `creadoEn` set.
+          queryBuilder: (q) => q.orderBy('fecha', descending: false),
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            final err = snapshot.error;
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Error al cargar citas',
+                      style: AppTextStyles.mainText.copyWith(color: Colors.red),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      err?.toString() ?? 'Error desconocido',
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () => setState(() => _reloadKey++),
+                      child: Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) return _buildEmptyState();
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final cita = {
+                ...doc.data() as Map<String, dynamic>,
+                'id': doc.id,
+              };
+              return _buildCitaItem(cita, index, doc);
+            },
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navegarAAgregarCita,
         backgroundColor: Colors.grey[400],
@@ -83,7 +135,11 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
     );
   }
 
-  Widget _buildCitaItem(Map<String, dynamic> cita, int index) {
+  Widget _buildCitaItem(
+    Map<String, dynamic> cita,
+    int index,
+    DocumentSnapshot doc,
+  ) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
@@ -122,7 +178,7 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${cita['fecha']} ${cita['hora']}',
+                  _formatFecha(cita['fecha']),
                   style: AppTextStyles.mainText.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -131,7 +187,9 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  cita['tipoServicio'],
+                  // Some documents may not include `tipoServicio` (see screenshot).
+                  // Provide a safe fallback so the Text widget never receives null.
+                  (cita['tipoServicio'] as String?) ?? 'Cita general',
                   style: AppTextStyles.contactText.copyWith(
                     color: Colors.grey[600],
                     fontSize: 13,
@@ -144,14 +202,14 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: () => _editarCita(index),
+                onPressed: () => _editarCitaDoc(doc),
                 icon: Icon(Icons.edit, color: Colors.blue, size: 20),
                 padding: EdgeInsets.all(8),
                 constraints: BoxConstraints(minWidth: 40, minHeight: 40),
               ),
               SizedBox(width: 8),
               IconButton(
-                onPressed: () => _eliminarCita(index),
+                onPressed: () => _eliminarCitaDoc(doc),
                 icon: Icon(Icons.delete, color: Colors.red, size: 20),
                 padding: EdgeInsets.all(8),
                 constraints: BoxConstraints(minWidth: 40, minHeight: 40),
@@ -258,24 +316,53 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
             ),
             ElevatedButton(
               onPressed: fechaSeleccionada != null && horaSeleccionada != null
-                  ? () {
-                      // Agregar la nueva cita a la lista
-                      setState(() {
-                        _citasProgramadas.add({
-                          'fecha':
-                              '${fechaSeleccionada!.year}-${fechaSeleccionada!.month.toString().padLeft(2, '0')}-${fechaSeleccionada!.day.toString().padLeft(2, '0')}',
-                          'hora': horaSeleccionada!.format(context),
-                          'tipoServicio': 'Cita general',
-                          'duracion': 60,
-                        });
-                      });
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Cita agregada exitosamente'),
-                          backgroundColor: Colors.green,
-                        ),
+                  ? () async {
+                      // Construir datos de la cita
+                      // Combinar fecha y hora en un único DateTime y guardar como Timestamp
+                      final combined = DateTime(
+                        fechaSeleccionada!.year,
+                        fechaSeleccionada!.month,
+                        fechaSeleccionada!.day,
+                        horaSeleccionada!.hour,
+                        horaSeleccionada!.minute,
                       );
+
+                      final nuevaCita = {
+                        // Guardar sólo los campos mínimos requeridos por Firestore
+                        // vista: `fecha`, `disponible`, `prospectoId`.
+                        // `fecha` se guarda en UTC para evitar discrepancias.
+                        'fecha': Timestamp.fromDate(combined.toUtc()),
+                        'disponible': true,
+                        'prospectoId': null,
+                      };
+
+                      try {
+                        // Guardar en Firestore en la colección 'citas'
+                        await _firestore.addDocument('citas', nuevaCita);
+
+                        // La lista se actualiza automáticamente desde Firestore (stream)
+
+                        // ignore: use_build_context_synchronously
+                        Navigator.pop(context);
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Cita agregada exitosamente'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        // Manejar error
+                        // ignore: use_build_context_synchronously
+                        Navigator.pop(context);
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error al agregar cita: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
                   : null,
               style: ElevatedButton.styleFrom(
@@ -290,47 +377,30 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
     );
   }
 
-  void _editarCita(int index) {
-    final cita = _citasProgramadas[index];
+  void _editarCitaDoc(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
 
     // Convertir la fecha de string a DateTime
-    final fechaParts = cita['fecha'].split('-');
+    // Read Timestamp from Firestore and convert to DateTime/TimeOfDay
+    DateTime existingFecha;
+    final rawFecha = data['fecha'];
+    if (rawFecha is Timestamp) {
+      existingFecha = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      existingFecha = rawFecha;
+    } else {
+      existingFecha = DateTime.now();
+    }
     DateTime? fechaSeleccionada = DateTime(
-      int.parse(fechaParts[0]), // año
-      int.parse(fechaParts[1]), // mes
-      int.parse(fechaParts[2]), // día
+      existingFecha.year,
+      existingFecha.month,
+      existingFecha.day,
+    );
+    TimeOfDay? horaSeleccionada = TimeOfDay(
+      hour: existingFecha.hour,
+      minute: existingFecha.minute,
     );
 
-    // Convertir la hora de string a TimeOfDay con manejo de errores
-    TimeOfDay? horaSeleccionada;
-    try {
-      final horaString = cita['hora'];
-      // Remover AM/PM si existe y hacer split
-      final horaLimpia = horaString.replaceAll(RegExp(r'\s*(AM|PM)\s*'), '');
-      final horaParts = horaLimpia.split(':');
-
-      if (horaParts.length >= 2) {
-        int hour = int.parse(horaParts[0]);
-        int minute = int.parse(horaParts[1]);
-
-        // Si la hora original tenía PM y no es 12, agregar 12 horas
-        if (horaString.toUpperCase().contains('PM') && hour != 12) {
-          hour += 12;
-        }
-        // Si la hora original tenía AM y es 12, convertir a 0
-        else if (horaString.toUpperCase().contains('AM') && hour == 12) {
-          hour = 0;
-        }
-
-        horaSeleccionada = TimeOfDay(hour: hour, minute: minute);
-      }
-    } catch (e) {
-      // Si falla el parsing, usar hora actual como fallback
-      horaSeleccionada = TimeOfDay.now();
-    }
-
-    // Si aún es null, usar hora actual
-    horaSeleccionada ??= TimeOfDay.now();
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -369,14 +439,16 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
                         ),
                       ),
                       SizedBox(height: 4),
+                      // Show the formatted fecha using our helper so timezone
+                      // conversion is handled consistently (we stored UTC above).
                       Text(
-                        '${cita['fecha']} ${cita['hora']}',
+                        _formatFecha(data['fecha']),
                         style: AppTextStyles.contactText.copyWith(
                           color: Colors.grey[700],
                         ),
                       ),
                       Text(
-                        cita['tipoServicio'],
+                        data['tipoServicio'] ?? 'Cita general',
                         style: AppTextStyles.contactText.copyWith(
                           color: Colors.grey[600],
                           fontSize: 12,
@@ -468,23 +540,40 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
             ),
             ElevatedButton(
               onPressed: fechaSeleccionada != null && horaSeleccionada != null
-                  ? () {
-                      // Actualizar la cita en la lista
-                      setState(() {
-                        _citasProgramadas[index] = {
-                          ..._citasProgramadas[index],
-                          'fecha':
-                              '${fechaSeleccionada!.year}-${fechaSeleccionada!.month.toString().padLeft(2, '0')}-${fechaSeleccionada!.day.toString().padLeft(2, '0')}',
-                          'hora': horaSeleccionada!.format(context),
-                        };
-                      });
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Cita actualizada exitosamente'),
-                          backgroundColor: Colors.green,
-                        ),
+                  ? () async {
+                      final combined = DateTime(
+                        fechaSeleccionada!.year,
+                        fechaSeleccionada!.month,
+                        fechaSeleccionada!.day,
+                        horaSeleccionada!.hour,
+                        horaSeleccionada!.minute,
                       );
+
+                      try {
+                        await _firestore.updateDocument('citas', doc.id, {
+                          'fecha': Timestamp.fromDate(combined),
+                        });
+
+                        // ignore: use_build_context_synchronously
+                        Navigator.pop(context);
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Cita actualizada exitosamente'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        // ignore: use_build_context_synchronously
+                        Navigator.pop(context);
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error al actualizar cita: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
                   : null,
               style: ElevatedButton.styleFrom(
@@ -499,7 +588,7 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
     );
   }
 
-  void _eliminarCita(int index) {
+  void _eliminarCitaDoc(DocumentSnapshot doc) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -511,22 +600,59 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
             child: Text('Cancelar'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _citasProgramadas.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Cita eliminada exitosamente'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+            onPressed: () async {
+              try {
+                await _firestore.deleteDocument('citas', doc.id);
+                // ignore: use_build_context_synchronously
+                Navigator.pop(context);
+                // ignore: use_build_context_synchronously
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Cita eliminada exitosamente'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                // ignore: use_build_context_synchronously
+                Navigator.pop(context);
+                // ignore: use_build_context_synchronously
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error al eliminar cita: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             child: Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+  }
+
+  String _formatFecha(dynamic rawFecha) {
+    if (rawFecha == null) return '-';
+    DateTime dt;
+    if (rawFecha is Timestamp) {
+      dt = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      dt = rawFecha;
+    } else if (rawFecha is String) {
+      try {
+        dt = DateTime.parse(rawFecha);
+      } catch (e) {
+        return rawFecha.toString();
+      }
+    } else {
+      return rawFecha.toString();
+    }
+
+    try {
+      final df = DateFormat("d 'de' MMMM 'de' y, h:mm a", 'es');
+      return df.format(dt.toLocal());
+    } catch (e) {
+      return dt.toLocal().toString();
+    }
   }
 }

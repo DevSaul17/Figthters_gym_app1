@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../constants.dart';
 import 'mensaje_screen.dart';
+import 'package:intl/intl.dart';
+import '../../services/firestore_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DatosCitaScreen extends StatefulWidget {
   final Map<String, dynamic> horarioSeleccionado;
@@ -23,6 +26,8 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
 
   String _generoSeleccionado = '';
   String _objetivoSeleccionado = '';
+
+  final FirestoreService _firestore = FirestoreService();
 
   final List<String> objetivos = [
     'Movilidad, coordinación y fuerza.',
@@ -338,7 +343,7 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
                   SizedBox(height: 8),
 
                   Text(
-                    '${widget.horarioSeleccionado['dia']} ${widget.horarioSeleccionado['fecha']} ${widget.horarioSeleccionado['hora']}',
+                    _formatHorario(widget.horarioSeleccionado),
                     style: AppTextStyles.contactText.copyWith(
                       fontSize: 14,
                       color: const Color.fromARGB(255, 255, 255, 255),
@@ -481,6 +486,35 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
     );
   }
 
+  String _formatHorario(Map<String, dynamic> horario) {
+    final rawFecha = horario['fecha'];
+    DateTime dt;
+    if (rawFecha is Timestamp) {
+      dt = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      dt = rawFecha;
+    } else if (rawFecha is String) {
+      try {
+        dt = DateTime.parse(rawFecha);
+      } catch (e) {
+        return rawFecha.toString();
+      }
+    } else {
+      return '-';
+    }
+
+    try {
+      final dia = DateFormat('EEEE', 'es').format(dt.toLocal()).toUpperCase();
+      final fechaHora = DateFormat(
+        "d 'de' MMMM 'de' y, h:mm a",
+        'es',
+      ).format(dt.toLocal());
+      return '$dia $fechaHora';
+    } catch (e) {
+      return dt.toLocal().toString();
+    }
+  }
+
   void _confirmarCita() {
     // Validar el formulario antes de confirmar la cita
     if (!_formKey.currentState!.validate()) {
@@ -509,24 +543,86 @@ class _DatosCitaScreenState extends State<DatosCitaScreen> {
       return;
     }
 
-    // Si todas las validaciones pasan, navegar a la pantalla de mensaje
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MensajeScreen(
-          datosCita: {
-            'nombre': _nombreController.text,
-            'apellidos': _apellidosController.text,
-            'celular': _celularController.text,
-            'edad': _edadController.text,
-            'peso': _pesoController.text,
-            'talla': _tallaController.text,
-            'genero': _generoSeleccionado,
-            'objetivo': _objetivoSeleccionado,
-          },
-          horarioSeleccionado: widget.horarioSeleccionado,
-        ),
-      ),
+    // Si todas las validaciones pasan, guardar prospecto en Firestore
+    _guardarProspectoYContinuar();
+  }
+
+  Future<void> _guardarProspectoYContinuar() async {
+    final prospectoData = {
+      'nombre': _nombreController.text.trim(),
+      'apellidos': _apellidosController.text.trim(),
+      'celular': _celularController.text.trim(),
+      'edad': int.tryParse(_edadController.text.trim()),
+      'peso': double.tryParse(_pesoController.text.trim()),
+      'talla': _tallaController.text.trim(),
+      'genero': _generoSeleccionado,
+      'objetivo': _objetivoSeleccionado,
+      'creadoEn': FieldValue.serverTimestamp(),
+    };
+
+    // Si el horario seleccionado contiene id y fecha, incluimos la referencia
+    // a la cita dentro del documento prospecto para trazabilidad.
+    final horarioId = widget.horarioSeleccionado['id'] as String?;
+    final horarioFecha = widget.horarioSeleccionado['fecha'];
+    if (horarioId != null && horarioId.isNotEmpty) {
+      prospectoData['citaId'] = horarioId;
+      // Guardamos la fecha tal cual viene (Timestamp si lo es), para mantener
+      // la precisión y poder ordenar/consultar por la fecha del turno.
+      prospectoData['citaFecha'] = horarioFecha;
+    }
+
+    // Mostrar indicador de progreso
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final docRef = await _firestore.addDocument('prospectos', prospectoData);
+
+      // Si el horario seleccionado tiene un id de documento, actualizar cita
+      final horarioId = widget.horarioSeleccionado['id'] as String?;
+      if (horarioId != null && horarioId.isNotEmpty) {
+        await _firestore.updateDocument('citas', horarioId, {
+          'prospectoId': docRef.id,
+          'disponible': false,
+        });
+      }
+
+      // Cerrar diálogo de progreso
+      if (mounted) Navigator.pop(context);
+
+      // Navegar a MensajeScreen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MensajeScreen(
+              datosCita: {
+                'nombre': _nombreController.text,
+                'apellidos': _apellidosController.text,
+                'celular': _celularController.text,
+                'edad': _edadController.text,
+                'peso': _pesoController.text,
+                'talla': _tallaController.text,
+                'genero': _generoSeleccionado,
+                'objetivo': _objetivoSeleccionado,
+              },
+              horarioSeleccionado: widget.horarioSeleccionado,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al guardar prospecto: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

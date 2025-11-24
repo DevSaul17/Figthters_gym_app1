@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "464218696811",
+    "project_id": "fluttergym-48b76",
+    "storage_bucket": "fluttergym-48b76.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:464218696811:android:7f504d340a0dd90882d52e",
+        "android_client_info": {
+          "package_name": "com.example.fighters_gym_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeHh9Gzt77iFL1ipQ6RYuAdJKr3ODkfxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

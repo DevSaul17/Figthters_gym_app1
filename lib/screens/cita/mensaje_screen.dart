@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../constants.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class MensajeScreen extends StatelessWidget {
+class MensajeScreen extends StatefulWidget {
   final Map<String, String> datosCita;
   final Map<String, dynamic> horarioSeleccionado;
 
@@ -12,7 +15,62 @@ class MensajeScreen extends StatelessWidget {
   });
 
   @override
+  State<MensajeScreen> createState() => _MensajeScreenState();
+}
+
+class _MensajeScreenState extends State<MensajeScreen> {
+  bool _formatsReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFormats();
+  }
+
+  Future<void> _initFormats() async {
+    try {
+      await initializeDateFormatting('es');
+    } catch (_) {}
+    if (mounted) setState(() => _formatsReady = true);
+  }
+
+  String _formatHorario(Map<String, dynamic> horario) {
+    final rawFecha = horario['fecha'];
+    DateTime dt;
+    if (rawFecha is Timestamp) {
+      dt = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      dt = rawFecha;
+    } else if (rawFecha is String) {
+      try {
+        dt = DateTime.parse(rawFecha);
+      } catch (e) {
+        return rawFecha.toString();
+      }
+    } else {
+      return '-';
+    }
+
+    try {
+      final dia = DateFormat('EEEE', 'es').format(dt.toLocal()).toUpperCase();
+      final fechaHora = DateFormat(
+        "d 'de' MMMM 'de' y, h:mm a",
+        'es',
+      ).format(dt.toLocal());
+      return '$dia $fechaHora';
+    } catch (e) {
+      return dt.toLocal().toString();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final nombre = widget.datosCita['nombre'] ?? '';
+    final apellidos = widget.datosCita['apellidos'] ?? '';
+    final citaTexto = _formatsReady
+        ? _formatHorario(widget.horarioSeleccionado)
+        : (widget.horarioSeleccionado['fecha']?.toString() ?? '-');
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -85,7 +143,7 @@ class MensajeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '${datosCita['nombre']} ${datosCita['apellidos']}',
+                      '$nombre $apellidos',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -97,7 +155,7 @@ class MensajeScreen extends StatelessWidget {
                     SizedBox(height: 20),
 
                     Text(
-                      'para el ${horarioSeleccionado['dia']} ${horarioSeleccionado['fecha']} en el horario de ${horarioSeleccionado['hora']}.',
+                      'para el $citaTexto',
                       style: TextStyle(color: Colors.white, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),

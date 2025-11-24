@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../constants.dart';
 import 'datos_cita_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/firestore_service.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 class HorariosScreen extends StatefulWidget {
   const HorariosScreen({super.key});
@@ -10,45 +14,29 @@ class HorariosScreen extends StatefulWidget {
 }
 
 class _HorariosScreenState extends State<HorariosScreen> {
-  int? selectedIndex;
+  // ID del documento seleccionado
+  String? selectedId;
+  // Mapa con los datos del documento seleccionado para navegar
+  Map<String, dynamic>? _selectedHorario;
 
-  final List<Map<String, dynamic>> horarios = [
-    {
-      'dia': 'LUNES',
-      'fecha': '27/10/2025',
-      'hora': '13:00',
-      'isSelected': false,
-      'color': Colors.black,
-    },
-    {
-      'dia': 'MARTES',
-      'fecha': '28/10/2025',
-      'hora': '14:00',
-      'isSelected': false,
-      'color': Colors.red,
-    },
-    {
-      'dia': 'MIÉRCOLES',
-      'fecha': '29/10/2025',
-      'hora': '15:00',
-      'isSelected': false,
-      'color': Colors.black,
-    },
-    {
-      'dia': 'MIÉRCOLES',
-      'fecha': '29/10/2025',
-      'hora': '16:00',
-      'isSelected': false,
-      'color': Colors.red,
-    },
-    {
-      'dia': 'VIERNES',
-      'fecha': '31/10/2025',
-      'hora': '17:00',
-      'isSelected': false,
-      'color': Colors.black,
-    },
-  ];
+  final FirestoreService _firestore = FirestoreService();
+  bool _formatsReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDateFormats();
+  }
+
+  Future<void> _initializeDateFormats() async {
+    try {
+      await initializeDateFormatting('es');
+    } catch (e) {
+      // If initialization fails, we still allow the UI to continue; DateFormat
+      // will fallback to default formatting.
+    }
+    if (mounted) setState(() => _formatsReady = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,19 +67,50 @@ class _HorariosScreenState extends State<HorariosScreen> {
         ),
         child: Column(
           children: [
-            // Lista de horarios
+            // Lista de horarios (desde Firestore)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(AppDimensions.horizontalPadding),
-                child: ListView.builder(
-                  itemCount: horarios.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: _buildHorarioCard(index),
-                    );
-                  },
-                ),
+                child: !_formatsReady
+                    ? Center(child: CircularProgressIndicator())
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: _firestore.streamCollection(
+                          'citas',
+                          queryBuilder: (q) =>
+                              q.orderBy('fecha', descending: false),
+                        ),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error al cargar horarios'),
+                            );
+                          }
+                          final docs = snapshot.data?.docs ?? [];
+                          if (docs.isEmpty) {
+                            return Center(
+                              child: Text('No hay horarios disponibles'),
+                            );
+                          }
+                          return ListView.builder(
+                            itemCount: docs.length,
+                            itemBuilder: (context, index) {
+                              final doc = docs[index];
+                              final data = {
+                                ...doc.data() as Map<String, dynamic>,
+                                'id': doc.id,
+                              };
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: _buildHorarioCardFromDoc(data),
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
             ),
 
@@ -101,15 +120,13 @@ class _HorariosScreenState extends State<HorariosScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: selectedIndex != null
+                  onPressed: _selectedHorario != null
                       ? () {
-                          // Navegar a la pantalla de datos de cita
-                          final horarioSeleccionado = horarios[selectedIndex!];
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => DatosCitaScreen(
-                                horarioSeleccionado: horarioSeleccionado,
+                                horarioSeleccionado: _selectedHorario!,
                               ),
                             ),
                           );
@@ -117,7 +134,7 @@ class _HorariosScreenState extends State<HorariosScreen> {
                       : null,
                   style: AppButtonStyles.primaryButton.copyWith(
                     backgroundColor: WidgetStateProperty.all(
-                      selectedIndex != null
+                      _selectedHorario != null
                           ? AppColors.primary
                           : Colors.grey[400],
                     ),
@@ -136,20 +153,48 @@ class _HorariosScreenState extends State<HorariosScreen> {
     );
   }
 
-  Widget _buildHorarioCard(int index) {
-    final horario = horarios[index];
-    final isSelected = selectedIndex == index;
+  Widget _buildHorarioCardFromDoc(Map<String, dynamic> horario) {
+    final String docId = (horario['id'] ?? '') as String;
+    // Determine availability color
+    final bool disponible = (horario['disponible'] == null)
+        ? true
+        : (horario['disponible'] as bool);
+    final Color cardColor = disponible ? Colors.black : Colors.red;
+
+    // Parse fecha (could be Timestamp or String)
+    DateTime dt;
+    final rawFecha = horario['fecha'];
+    if (rawFecha is Timestamp) {
+      dt = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      dt = rawFecha;
+    } else if (rawFecha is String) {
+      try {
+        dt = DateTime.parse(rawFecha);
+      } catch (e) {
+        dt = DateTime.now();
+      }
+    } else {
+      dt = DateTime.now();
+    }
+
+    final diaStr = DateFormat('EEEE', 'es').format(dt.toLocal()).toUpperCase();
+    final fechaStr = DateFormat('d/MM/yyyy', 'es').format(dt.toLocal());
+    final horaStr = DateFormat('h:mm a', 'es').format(dt.toLocal());
+
+    final isSelected = selectedId != null && selectedId == docId;
 
     return GestureDetector(
       onTap: () {
         setState(() {
-          selectedIndex = index;
+          selectedId = docId;
+          _selectedHorario = horario;
         });
       },
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: horario['color'],
+          color: cardColor,
           borderRadius: BorderRadius.circular(12),
           border: isSelected ? Border.all(color: Colors.blue, width: 3) : null,
         ),
@@ -160,7 +205,7 @@ class _HorariosScreenState extends State<HorariosScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  horario['dia'],
+                  diaStr,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -168,7 +213,7 @@ class _HorariosScreenState extends State<HorariosScreen> {
                   ),
                 ),
                 Text(
-                  '${horario['fecha']} ${horario['hora']}',
+                  '$fechaStr $horaStr',
                   style: TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
