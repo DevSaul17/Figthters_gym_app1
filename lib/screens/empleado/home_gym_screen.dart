@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'registro_cliente_screen.dart';
 import 'agregar_horario_cita_screen.dart';
 import 'configuracion_screen.dart';
+import 'equipos_screen.dart';
 import '../../home_screen.dart';
 
 class HomeGymScreen extends StatefulWidget {
@@ -197,14 +198,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
 
           Row(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Equipos en Activos',
-                  '8',
-                  Icons.fitness_center,
-                  Colors.orange,
-                ),
-              ),
+              Expanded(child: _buildEquiposActivosCard()),
               SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
@@ -513,28 +507,24 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
   }
 
   Widget _buildEquipos() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.fitness_center,
-            size: 80,
-            // ignore: deprecated_member_use
-            color: AppColors.primary.withOpacity(0.6),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Gestión de Equipos',
-            style: AppTextStyles.mainText.copyWith(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text('Módulo en desarrollo...', style: AppTextStyles.contactText),
-        ],
+    return EquiposScreen();
+  }
+
+  Widget _buildEquiposActivosCard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.streamCollection(
+        'equipos',
+        queryBuilder: (q) => q.where('activo', isEqualTo: true),
       ),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return _buildStatCard(
+          'Equipos Activos',
+          '$count',
+          Icons.fitness_center,
+          Colors.orange,
+        );
+      },
     );
   }
 
