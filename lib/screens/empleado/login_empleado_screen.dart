@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../constants.dart';
+import '../../services/firestore_service.dart';
+import '../../services/auth_security_service.dart';
 import 'home_gym_screen.dart';
 
 class LoginEmpleadoScreen extends StatefulWidget {
@@ -15,6 +18,8 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
   final _contrasenaController = TextEditingController();
   bool _obscurePassword = true;
   bool _mantenerSesion = false;
+  bool _isLoading = false;
+  final FirestoreService _firestoreService = FirestoreService();
 
   @override
   void dispose() {
@@ -81,9 +86,14 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
               // Campo Usuario
               TextFormField(
                 controller: _usuarioController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(8),
+                ],
                 decoration: InputDecoration(
-                  labelText: 'ID Empleado',
-                  hintText: 'Ingresa tu ID de empleado',
+                  labelText: 'DNI',
+                  hintText: 'Ingresa tu DNI (8 dígitos)',
                   prefixIcon: Icon(Icons.person, color: AppColors.primary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -95,7 +105,10 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa tu ID de empleado';
+                    return 'Por favor ingresa tu DNI';
+                  }
+                  if (value.length != 8) {
+                    return 'El DNI debe tener exactamente 8 dígitos';
                   }
                   return null;
                 },
@@ -107,6 +120,8 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
               TextFormField(
                 controller: _contrasenaController,
                 obscureText: _obscurePassword,
+                enableSuggestions: false,
+                autocorrect: false,
                 decoration: InputDecoration(
                   labelText: 'Contraseña',
                   hintText: 'Ingresa tu contraseña',
@@ -135,6 +150,9 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Por favor ingresa tu contraseña';
+                  }
+                  if (value.length < 6) {
+                    return 'La contraseña debe tener al menos 6 caracteres';
                   }
                   return null;
                 },
@@ -172,24 +190,37 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    _iniciarSesionEmpleado();
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          _iniciarSesionEmpleado();
+                        },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: _isLoading ? Colors.grey : Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text(
-                    'Ingresar',
-                    style: AppTextStyles.buttonText.copyWith(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          'Ingresar',
+                          style: AppTextStyles.buttonText.copyWith(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
 
@@ -225,33 +256,143 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
     );
   }
 
-  void _iniciarSesionEmpleado() {
+  void _iniciarSesionEmpleado() async {
     if (_formKey.currentState!.validate()) {
-      // Navegar directamente a la pantalla de gestión del gimnasio
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              HomeGymScreen(nombreEmpleado: _usuarioController.text),
-        ),
-      );
+      setState(() {
+        _isLoading = true;
+      });
 
-      // Mostrar mensaje de bienvenida
-      Future.delayed(Duration(milliseconds: 300), () {
+      try {
+        final empleadoData = await _firestoreService.autenticarEmpleado(
+          _usuarioController.text.trim(),
+          _contrasenaController.text,
+        );
+
+        if (empleadoData != null) {
+          // Limpiar campos sensibles
+          _contrasenaController.clear();
+
+          // Autenticación exitosa
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeGymScreen(
+                  nombreEmpleado:
+                      '${empleadoData['nombre']} ${empleadoData['apellido']}',
+                ),
+              ),
+            );
+
+            // Mostrar mensaje de bienvenida
+            Future.delayed(Duration(milliseconds: 300), () {
+              if (mounted) {
+                String mensaje = _mantenerSesion
+                    ? 'Sesión mantenida activa. ¡Bienvenido ${empleadoData['nombre']}!'
+                    : '¡Acceso autorizado con éxito! Bienvenido ${empleadoData['nombre']}';
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(mensaje),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            });
+          }
+        } else {
+          // Autenticación fallida
+          _contrasenaController.clear();
+
+          if (mounted) {
+            // Obtener intentos restantes para mostrar información útil
+            final intentosRestantes =
+                await AuthSecurityService.intentosRestantes(
+                  _usuarioController.text.trim(),
+                );
+
+            String mensaje;
+            if (intentosRestantes <= 1) {
+              mensaje =
+                  'DNI o contraseña incorrectos. Último intento antes del bloqueo temporal.';
+            } else {
+              mensaje =
+                  'DNI o contraseña incorrectos. Te quedan ${intentosRestantes - 1} intentos.';
+            }
+
+            // ignore: use_build_context_synchronously
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(mensaje),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        // Limpiar campos sensibles
+        _contrasenaController.clear();
+
+        String mensaje;
+        if (e.toString().contains('RATE_LIMIT_EXCEEDED')) {
+          // Obtener tiempo restante de bloqueo
+          final tiempoRestante =
+              await AuthSecurityService.tiempoDesbloqueoRestante(
+                _usuarioController.text.trim(),
+              );
+          if (tiempoRestante != null) {
+            final minutos = tiempoRestante.inMinutes;
+            mensaje =
+                'Demasiados intentos fallidos. Intenta de nuevo en $minutos minutos.';
+          } else {
+            mensaje =
+                'Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.';
+          }
+        } else if (e.toString().contains('ACCOUNT_DISABLED')) {
+          mensaje = 'Tu cuenta ha sido desactivada. Contacta al administrador.';
+        } else {
+          mensaje =
+              'Error de conexión. Verifica tu internet e intenta nuevamente.';
+        }
+
         if (mounted) {
-          String mensaje = _mantenerSesion
-              ? 'Sesión mantenida activa. ¡Bienvenido!'
-              : '¡Acceso autorizado con éxito!';
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(mensaje),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+              action: e.toString().contains('RATE_LIMIT_EXCEEDED')
+                  ? SnackBarAction(
+                      label: 'Limpiar',
+                      textColor: Colors.white,
+                      onPressed: () async {
+                        // Función de debug para limpiar rate limiting
+                        await AuthSecurityService.limpiarDatosSeguridad();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Datos de seguridad limpiados (solo para desarrollo)',
+                              ),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  : null,
             ),
           );
         }
-      });
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 }
