@@ -239,6 +239,7 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
         leading: Container(
           padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
+            // ignore: deprecated_member_use
             color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),

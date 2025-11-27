@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
 import 'registro_membresia_screen.dart';
 
@@ -24,6 +25,7 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
   final _condicionFisicaController = TextEditingController();
 
   String _genero = 'Masculino';
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -480,29 +482,54 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _continuarAMembresia,
+                  onPressed: _isLoading ? null : _continuarAMembresia,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: _isLoading ? Colors.grey : Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Siguiente',
-                        style: AppTextStyles.buttonText.copyWith(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  child: _isLoading
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Guardando...',
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Siguiente',
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, color: Colors.white),
+                          ],
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, color: Colors.white),
-                    ],
-                  ),
                 ),
               ),
 
@@ -557,29 +584,92 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
     );
   }
 
-  void _continuarAMembresia() {
+  Future<void> _continuarAMembresia() async {
     if (_formKey.currentState!.validate()) {
-      // Navegar a RegistroMembresiaScreen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RegistroMembresiaScreen(
-            datosCliente: {
-              'dni': _dniController.text,
-              'nombre': _nombreController.text,
-              'apellidos': _apellidosController.text,
-              'fechaNacimiento': _fechaNacimientoController.text,
-              'celular': _celularController.text,
-              'email': _emailController.text,
-              'genero': _genero,
-              'edad': _edadController.text,
-              'peso': _pesoController.text,
-              'talla': _tallaController.text,
-              'condicionFisica': _condicionFisicaController.text,
-            },
-          ),
-        ),
-      );
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Verificar si el cliente ya existe por DNI
+        final existeCliente = await FirebaseFirestore.instance
+            .collection('clientes')
+            .where('dni', isEqualTo: _dniController.text.trim())
+            .get();
+
+        if (existeCliente.docs.isNotEmpty) {
+          if (mounted) {
+            _mostrarMensaje(
+              'Ya existe un cliente registrado con este DNI',
+              Colors.orange,
+            );
+          }
+          return;
+        }
+
+        // Datos del cliente para Firestore
+        final datosCliente = {
+          'dni': _dniController.text.trim(),
+          'nombre': _nombreController.text.trim(),
+          'apellidos': _apellidosController.text.trim(),
+          'fechaNacimiento': _fechaNacimientoController.text.trim(),
+          'celular': _celularController.text.trim(),
+          'email': _emailController.text.trim(),
+          'genero': _genero,
+          'edad': int.parse(_edadController.text),
+          'peso': double.parse(_pesoController.text),
+          'talla': int.parse(_tallaController.text),
+          'condicionFisica': _condicionFisicaController.text.trim(),
+          'activo': true,
+          'creadoEn': FieldValue.serverTimestamp(),
+          'actualizadoEn': FieldValue.serverTimestamp(),
+        };
+
+        // Guardar en Firestore
+        final docRef = await FirebaseFirestore.instance
+            .collection('clientes')
+            .add(datosCliente);
+
+        if (mounted) {
+          _mostrarMensaje(
+            'Cliente "${_nombreController.text} ${_apellidosController.text}" registrado correctamente',
+            Colors.green,
+          );
+
+          // Navegar a RegistroMembresiaScreen con los datos del cliente
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RegistroMembresiaScreen(
+                datosCliente: {
+                  'id': docRef.id,
+                  'dni': _dniController.text.trim(),
+                  'nombre': _nombreController.text.trim(),
+                  'apellidos': _apellidosController.text.trim(),
+                  'fechaNacimiento': _fechaNacimientoController.text.trim(),
+                  'celular': _celularController.text.trim(),
+                  'email': _emailController.text.trim(),
+                  'genero': _genero,
+                  'edad': _edadController.text,
+                  'peso': _pesoController.text,
+                  'talla': _tallaController.text,
+                  'condicionFisica': _condicionFisicaController.text.trim(),
+                },
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          _mostrarMensaje('Error al registrar cliente: $e', Colors.red);
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -628,5 +718,16 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
         _edadController.text = edad.toString();
       });
     }
+  }
+
+  void _mostrarMensaje(String mensaje, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
 import 'gestionar_planes_screen.dart';
 import 'pagos_screen.dart';
@@ -25,32 +26,15 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
   List<String> _diasSeleccionados = [];
   final DateTime _fechaCreacion = DateTime.now();
 
-  final List<PlanMembresia> _planesDisponibles = [
-    PlanMembresia(
-      id: '1',
-      nombre: 'Fitness Musculacion',
-      descripcion:
-          'Plan enfocado en desarrollo muscular y acondicionamiento físico general',
-    ),
-    PlanMembresia(
-      id: '2',
-      nombre: 'Hibrido',
-      descripcion: 'Combinación de entrenamiento funcional, pesas y cardio',
-    ),
-    PlanMembresia(
-      id: '3',
-      nombre: 'Artes Marciales',
-      descripcion:
-          'Plan especializado en disciplinas de combate y defensa personal',
-    ),
-  ];
+  List<PlanMembresia> _planesDisponibles = [];
+  bool _isLoadingPlanes = true;
+  String? _errorCargaPlanes;
+  bool _isRegistrandoMembresia = false;
 
   @override
   void initState() {
     super.initState();
-    if (_planesDisponibles.isNotEmpty) {
-      _planSeleccionado = _planesDisponibles.first.nombre;
-    }
+    _cargarPlanesDesdeFirestore();
     _actualizarDiasDisponibles();
     _calcularFechaFin();
   }
@@ -171,35 +155,7 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
                 ),
               ),
               SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _planSeleccionado.isEmpty
-                    ? null
-                    : _planSeleccionado,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.card_membership,
-                    color: AppColors.primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.primary, width: 2),
-                  ),
-                ),
-                items: _planesDisponibles.map((plan) {
-                  return DropdownMenuItem<String>(
-                    value: plan.nombre,
-                    child: Text(plan.nombre),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _planSeleccionado = value!;
-                  });
-                },
-              ),
+              _buildPlanDropdown(),
 
               SizedBox(height: 30),
 
@@ -540,29 +496,56 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _navegarAPagos,
+                  onPressed: _isRegistrandoMembresia ? null : _navegarAPagos,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+                    backgroundColor: _isRegistrandoMembresia
+                        ? Colors.grey
+                        : const Color.fromARGB(255, 0, 0, 0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.payment, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text(
-                        'Realizar Pago',
-                        style: AppTextStyles.buttonText.copyWith(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  child: _isRegistrandoMembresia
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Registrando membresía...',
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.payment, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Realizar Pago',
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
 
@@ -579,6 +562,157 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
       _fechaInicio.year,
       _fechaInicio.month + _tiempo,
       _fechaInicio.day,
+    );
+  }
+
+  Future<void> _cargarPlanesDesdeFirestore() async {
+    try {
+      setState(() {
+        _isLoadingPlanes = true;
+        _errorCargaPlanes = null;
+      });
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('planes')
+          .where('activo', isEqualTo: true)
+          .get();
+
+      final planes = querySnapshot.docs
+          .map((doc) => PlanMembresia.fromFirestore(doc))
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _planesDisponibles = planes;
+          _isLoadingPlanes = false;
+          if (_planesDisponibles.isNotEmpty && _planSeleccionado.isEmpty) {
+            _planSeleccionado = _planesDisponibles.first.nombre;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingPlanes = false;
+          _errorCargaPlanes = 'Error al cargar planes: $e';
+        });
+      }
+    }
+  }
+
+  Widget _buildPlanDropdown() {
+    if (_isLoadingPlanes) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[400]!),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Cargando planes disponibles...'),
+          ],
+        ),
+      );
+    }
+
+    if (_errorCargaPlanes != null) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.red),
+          borderRadius: BorderRadius.circular(12),
+          // ignore: deprecated_member_use
+          color: Colors.red.withOpacity(0.1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error, color: Colors.red),
+            SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Error al cargar planes',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  TextButton(
+                    onPressed: _cargarPlanesDesdeFirestore,
+                    child: Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_planesDisponibles.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.orange),
+          borderRadius: BorderRadius.circular(12),
+          // ignore: deprecated_member_use
+          color: Colors.orange.withOpacity(0.1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No hay planes disponibles. Contacte al administrador.',
+                style: TextStyle(color: Colors.orange[700]),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return DropdownButtonFormField<String>(
+      initialValue: _planSeleccionado.isEmpty ? null : _planSeleccionado,
+      decoration: InputDecoration(
+        prefixIcon: Icon(Icons.card_membership, color: AppColors.primary),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
+        ),
+      ),
+      items: _planesDisponibles.map((plan) {
+        return DropdownMenuItem<String>(
+          value: plan.nombre,
+          child: Text(plan.nombre),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _planSeleccionado = value!;
+        });
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Por favor selecciona un plan de membresía';
+        }
+        return null;
+      },
     );
   }
 
@@ -693,36 +827,98 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
     }
   }
 
-  void _navegarAPagos() {
+  Future<void> _navegarAPagos() async {
     if (_formKey.currentState!.validate()) {
       // Validar que se hayan seleccionado días para frecuencia de 3 días
       if (_frecuencia == 3 && _diasSeleccionados.length != 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Debes seleccionar exactamente 3 días para entrenar'),
-            backgroundColor: Colors.red,
-          ),
+        _mostrarMensaje(
+          'Debes seleccionar exactamente 3 días para entrenar',
+          Colors.red,
         );
         return;
       }
 
-      // Navegar a la pantalla de pagos
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PagosScreen(
-            datosCliente: widget.datosCliente,
-            planSeleccionado: _planSeleccionado,
-            frecuencia: _frecuencia,
-            tiempo: _tiempo,
-            fechaInicio: _fechaInicio,
-            fechaFin: _fechaFin,
-            hora: _hora,
-            diasSeleccionados: _diasSeleccionados,
-            fechaCreacion: _fechaCreacion,
-          ),
-        ),
-      );
+      setState(() {
+        _isRegistrandoMembresia = true;
+      });
+
+      try {
+        // Obtener el plan seleccionado
+        final planSeleccionado = _planesDisponibles.firstWhere(
+          (plan) => plan.nombre == _planSeleccionado,
+        );
+
+        // Crear datos de la membresía
+        final datosMembresia = {
+          'clienteId': widget.datosCliente['id'],
+          'clienteDni': widget.datosCliente['dni'],
+          'clienteNombre':
+              '${widget.datosCliente['nombre']} ${widget.datosCliente['apellidos']}',
+          'planId': planSeleccionado.id,
+          'planNombre': planSeleccionado.nombre,
+          'planDescripcion': planSeleccionado.descripcion,
+          'frecuencia': _frecuencia,
+          'tiempo': _tiempo,
+          'fechaInicio': _fechaInicio,
+          'fechaFin': _fechaFin,
+          'horaEntrenamiento':
+              '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}',
+          'diasSeleccionados': _diasSeleccionados,
+          'fechaCreacion': FieldValue.serverTimestamp(),
+          'estado': 'pendiente_pago',
+          'activa': true,
+          'creadoPor': 'empleado',
+        };
+
+        // Guardar membresía en Firestore
+        final docRef = await FirebaseFirestore.instance
+            .collection('membresias')
+            .add(datosMembresia);
+
+        if (mounted) {
+          _mostrarMensaje('Membresía registrada correctamente', Colors.green);
+
+          // Navegar a la pantalla de pagos con el ID de la membresía
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PagosScreen(
+                datosCliente: widget.datosCliente,
+                planSeleccionado: _planSeleccionado,
+                frecuencia: _frecuencia,
+                tiempo: _tiempo,
+                fechaInicio: _fechaInicio,
+                fechaFin: _fechaFin,
+                hora: _hora,
+                diasSeleccionados: _diasSeleccionados,
+                fechaCreacion: _fechaCreacion,
+                membresiaId: docRef.id,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          _mostrarMensaje('Error al registrar membresía: $e', Colors.red);
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isRegistrandoMembresia = false;
+          });
+        }
+      }
     }
+  }
+
+  void _mostrarMensaje(String mensaje, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }
