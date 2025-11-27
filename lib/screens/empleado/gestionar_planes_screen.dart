@@ -1,20 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
 
 class PlanMembresia {
-  final int id;
+  final String? id;
   final String nombre;
   final String descripcion;
-  final double precio;
-  final List<String> beneficios;
+  final DateTime? creadoEn;
+  final DateTime? actualizadoEn;
+  final bool activo;
 
   PlanMembresia({
-    required this.id,
+    this.id,
     required this.nombre,
     required this.descripcion,
-    this.precio = 0.0,
-    this.beneficios = const [],
+    this.creadoEn,
+    this.actualizadoEn,
+    this.activo = true,
   });
+
+  // Convertir desde Firestore
+  factory PlanMembresia.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return PlanMembresia(
+      id: doc.id,
+      nombre: data['nombre'] ?? '',
+      descripcion: data['descripcion'] ?? '',
+      creadoEn: (data['creado_en'] as Timestamp?)?.toDate(),
+      actualizadoEn: (data['actualizado_en'] as Timestamp?)?.toDate(),
+      activo: data['activo'] ?? true,
+    );
+  }
+
+  // Convertir a Map para Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'activo': activo,
+      'actualizado_en': FieldValue.serverTimestamp(),
+    };
+  }
+
+  // Para crear nuevo plan
+  Map<String, dynamic> toFirestoreCreate() {
+    return {
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'activo': activo,
+      'creado_en': FieldValue.serverTimestamp(),
+      'actualizado_en': FieldValue.serverTimestamp(),
+    };
+  }
 }
 
 class GestionarPlanesScreen extends StatefulWidget {
@@ -25,31 +62,72 @@ class GestionarPlanesScreen extends StatefulWidget {
 }
 
 class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
-  final List<PlanMembresia> _planes = [
-    PlanMembresia(
-      id: 1,
-      nombre: 'Fitness Musculacion',
-      descripcion:
-          'Plan enfocado en desarrollo muscular y acondicionamiento físico general',
-      precio: 120.0,
-     
-    ),
-    PlanMembresia(
-      id: 2,
-      nombre: 'Hibrido',
-      descripcion: 'Combinación de entrenamiento funcional, pesas y cardio',
-      precio: 180.0,
-     
-    ),
-    PlanMembresia(
-      id: 3,
-      nombre: 'Artes Marciales',
-      descripcion:
-          'Plan especializado en disciplinas de combate y defensa personal',
-      precio: 200.0,
+  List<PlanMembresia> _planes = [];
+  bool _isLoading = true;
+  bool _isRefreshing = false;
 
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _cargarPlanes();
+  }
+
+  Future<void> _cargarPlanes() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+
+      // Primero intentamos obtener todos los documentos de la colección planes
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('planes')
+          .get();
+
+
+      if (querySnapshot.docs.isNotEmpty) {
+        for (var doc in querySnapshot.docs) {
+          print('📄 Datos: ${doc.data()}');
+        }
+      }
+
+      // Filtrar solo los planes activos
+      final planes = querySnapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            return data['activo'] == true || data['activo'] == null;
+          })
+          .map((doc) => PlanMembresia.fromFirestore(doc))
+          .toList();
+
+      print('✅ Planes activos cargados: ${planes.length}');
+
+      if (mounted) {
+        setState(() {
+          _planes = planes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error al cargar planes: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        _mostrarMensaje('Error al cargar planes: $e', Colors.red);
+      }
+    }
+  }
+
+  Future<void> _refrescarPlanes() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    await _cargarPlanes();
+    setState(() {
+      _isRefreshing = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,19 +150,38 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
         ),
         actions: [
           IconButton(
+            icon: Icon(Icons.refresh, color: Colors.white, size: 24),
+            onPressed: _isRefreshing ? null : _refrescarPlanes,
+          ),
+          IconButton(
             icon: Icon(Icons.add, color: Colors.white, size: 28),
             onPressed: _mostrarDialogoAgregarPlan,
           ),
         ],
       ),
-      body: _planes.isEmpty
+      body: _isLoading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  SizedBox(height: 16),
+                  Text('Cargando planes...', style: AppTextStyles.contactText),
+                ],
+              ),
+            )
+          : _planes.isEmpty
           ? _buildListaVacia()
-          : ListView.builder(
-              padding: EdgeInsets.all(16),
-              itemCount: _planes.length,
-              itemBuilder: (context, index) {
-                return _buildPlanCard(_planes[index]);
-              },
+          : RefreshIndicator(
+              onRefresh: _refrescarPlanes,
+              color: AppColors.primary,
+              child: ListView.builder(
+                padding: EdgeInsets.all(16),
+                itemCount: _planes.length,
+                itemBuilder: (context, index) {
+                  return _buildPlanCard(_planes[index]);
+                },
+              ),
             ),
     );
   }
@@ -142,7 +239,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
         leading: Container(
           padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
-            // ignore: deprecated_member_use
             color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
@@ -227,93 +323,146 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
     final nombreController = TextEditingController();
     final descripcionController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.add_box, color: Colors.green),
-            SizedBox(width: 8),
-            Text(
-              'Agregar Plan',
-              style: AppTextStyles.mainText.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.green,
-              ),
-            ),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Row(
             children: [
-              TextFormField(
-                controller: nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del Plan',
-                  prefixIcon: Icon(
-                    Icons.card_membership,
-                    color: AppColors.primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+              Icon(Icons.add_box, color: Colors.green),
+              SizedBox(width: 8),
+              Text(
+                'Agregar Plan',
+                style: AppTextStyles.mainText.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa el nombre del plan';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: descripcionController,
-                decoration: InputDecoration(
-                  labelText: 'Descripción',
-                  prefixIcon: Icon(Icons.description, color: AppColors.primary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa una descripción';
-                  }
-                  return null;
-                },
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                setState(() {
-                  _planes.add(
-                    PlanMembresia(
-                      id: DateTime.now().millisecondsSinceEpoch,
-                      nombre: nombreController.text,
-                      descripcion: descripcionController.text,
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nombreController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre del Plan',
+                    prefixIcon: Icon(
+                      Icons.card_membership,
+                      color: AppColors.primary,
                     ),
-                  );
-                });
-                Navigator.pop(context);
-                _mostrarMensaje('Plan agregado correctamente', Colors.green);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: Text('Agregar', style: TextStyle(color: Colors.white)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingresa el nombre del plan';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: descripcionController,
+                  decoration: InputDecoration(
+                    labelText: 'Descripción',
+                    prefixIcon: Icon(
+                      Icons.description,
+                      color: AppColors.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingresa una descripción';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (formKey.currentState!.validate()) {
+                        setState(() {
+                          isLoading = true;
+                        });
+
+                        try {
+                          final nuevoPlan = PlanMembresia(
+                            nombre: nombreController.text.trim(),
+                            descripcion: descripcionController.text.trim(),
+                          );
+
+                          print(
+                            '💾 Intentando guardar plan: ${nuevoPlan.nombre}',
+                          );
+                          print(
+                            '💾 Datos a guardar: ${nuevoPlan.toFirestoreCreate()}',
+                          );
+
+                          // Usar FirebaseFirestore directamente para mejor debugging
+                          final docRef = await FirebaseFirestore.instance
+                              .collection('planes')
+                              .add(nuevoPlan.toFirestoreCreate());
+
+                          print('✅ Plan guardado con ID: ${docRef.id}');
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            _mostrarMensaje(
+                              'Plan "${nuevoPlan.nombre}" agregado correctamente',
+                              Colors.green,
+                            );
+                          }
+                          await _cargarPlanes();
+                        } catch (e) {
+                          print('❌ Error al agregar plan: $e');
+                          if (context.mounted) {
+                            _mostrarMensaje(
+                              'Error al agregar plan: $e',
+                              Colors.red,
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              isLoading = false;
+                            });
+                          }
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              child: isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text('Agregar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -339,29 +488,16 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Nombre:',
-              style: AppTextStyles.mainText.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            Text(
-              plan.nombre,
-              style: AppTextStyles.contactText.copyWith(fontSize: 16),
-            ),
+            _buildDetailRow('Nombre:', plan.nombre),
             SizedBox(height: 12),
-            Text(
-              'Descripción:',
-              style: AppTextStyles.mainText.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+            _buildDetailRow('Descripción:', plan.descripcion),
+            if (plan.creadoEn != null) ...[
+              SizedBox(height: 12),
+              _buildDetailRow(
+                'Creado:',
+                '${plan.creadoEn!.day}/${plan.creadoEn!.month}/${plan.creadoEn!.year}',
               ),
-            ),
-            Text(
-              plan.descripcion,
-              style: AppTextStyles.contactText.copyWith(fontSize: 14),
-            ),
+            ],
           ],
         ),
         actions: [
@@ -374,143 +510,291 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
     );
   }
 
+  Widget _buildDetailRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTextStyles.mainText.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(value, style: AppTextStyles.contactText.copyWith(fontSize: 15)),
+      ],
+    );
+  }
+
   void _mostrarDialogoEditarPlan(PlanMembresia plan) {
     final nombreController = TextEditingController(text: plan.nombre);
     final descripcionController = TextEditingController(text: plan.descripcion);
     final formKey = GlobalKey<FormState>();
+    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.edit, color: Colors.orange),
-            SizedBox(width: 8),
-            Text(
-              'Editar Plan',
-              style: AppTextStyles.mainText.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.orange,
-              ),
-            ),
-          ],
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Row(
             children: [
-              TextFormField(
-                controller: nombreController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del Plan',
-                  prefixIcon: Icon(
-                    Icons.card_membership,
-                    color: AppColors.primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+              Icon(Icons.edit, color: Colors.orange),
+              SizedBox(width: 8),
+              Text(
+                'Editar Plan',
+                style: AppTextStyles.mainText.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa el nombre del plan';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: descripcionController,
-                decoration: InputDecoration(
-                  labelText: 'Descripción',
-                  prefixIcon: Icon(Icons.description, color: AppColors.primary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingresa una descripción';
-                  }
-                  return null;
-                },
               ),
             ],
           ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nombreController,
+                  decoration: InputDecoration(
+                    labelText: 'Nombre del Plan',
+                    prefixIcon: Icon(
+                      Icons.card_membership,
+                      color: AppColors.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingresa el nombre del plan';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 16),
+                TextFormField(
+                  controller: descripcionController,
+                  decoration: InputDecoration(
+                    labelText: 'Descripción',
+                    prefixIcon: Icon(
+                      Icons.description,
+                      color: AppColors.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Por favor ingresa una descripción';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (formKey.currentState!.validate()) {
+                        setState(() {
+                          isLoading = true;
+                        });
+
+                        try {
+                          final planActualizado = PlanMembresia(
+                            id: plan.id,
+                            nombre: nombreController.text.trim(),
+                            descripcion: descripcionController.text.trim(),
+                            creadoEn: plan.creadoEn,
+                            activo: plan.activo,
+                          );
+
+                          print('🔄 Actualizando plan ID: ${plan.id}');
+                          print(
+                            '🔄 Nuevos datos: ${planActualizado.toFirestore()}',
+                          );
+
+                          await FirebaseFirestore.instance
+                              .collection('planes')
+                              .doc(plan.id!)
+                              .update(planActualizado.toFirestore());
+
+                          print('✅ Plan actualizado exitosamente');
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            _mostrarMensaje(
+                              'Plan "${planActualizado.nombre}" actualizado correctamente',
+                              Colors.orange,
+                            );
+                          }
+                          await _cargarPlanes();
+                        } catch (e) {
+                          print('❌ Error al actualizar plan: $e');
+                          if (context.mounted) {
+                            _mostrarMensaje(
+                              'Error al actualizar plan: $e',
+                              Colors.red,
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              isLoading = false;
+                            });
+                          }
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text('Actualizar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                setState(() {
-                  int index = _planes.indexWhere((p) => p.id == plan.id);
-                  if (index != -1) {
-                    _planes[index] = PlanMembresia(
-                      id: plan.id,
-                      nombre: nombreController.text,
-                      descripcion: descripcionController.text,
-                    );
-                  }
-                });
-                Navigator.pop(context);
-                _mostrarMensaje(
-                  'Plan actualizado correctamente',
-                  Colors.orange,
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: Text('Actualizar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
 
   void _mostrarDialogoEliminarPlan(PlanMembresia plan) {
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.red),
-            SizedBox(width: 8),
-            Text(
-              '¡Atención!',
-              style: AppTextStyles.mainText.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.red,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 8),
+              Text(
+                '¡Atención!',
+                style: AppTextStyles.mainText.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
               ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '¿Estás seguro de que deseas eliminar el plan "${plan.nombre}"?',
+                style: AppTextStyles.contactText.copyWith(fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  // ignore: deprecated_member_use
+                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'El plan se desactivará y no estará disponible para nuevas suscripciones.',
+                        style: AppTextStyles.contactText.copyWith(
+                          fontSize: 13,
+                          color: Colors.red[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      setState(() {
+                        isLoading = true;
+                      });
+
+                      try {
+                        print('🗑️ Eliminando plan ID: ${plan.id}');
+
+                        await FirebaseFirestore.instance
+                            .collection('planes')
+                            .doc(plan.id!)
+                            .update({
+                              'activo': false,
+                              'eliminado_en': FieldValue.serverTimestamp(),
+                            });
+
+                        print('✅ Plan marcado como inactivo');
+
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          _mostrarMensaje(
+                            'Plan "${plan.nombre}" eliminado correctamente',
+                            Colors.red,
+                          );
+                        }
+                        await _cargarPlanes();
+                      } catch (e) {
+                        print('❌ Error al eliminar plan: $e');
+                        if (context.mounted) {
+                          _mostrarMensaje(
+                            'Error al eliminar plan: $e',
+                            Colors.red,
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            isLoading = false;
+                          });
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text('Eliminar', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        content: Text(
-          '¿Estás seguro de que deseas eliminar el plan "${plan.nombre}"? Esta acción no se puede deshacer.',
-          style: AppTextStyles.contactText,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _planes.removeWhere((p) => p.id == plan.id);
-              });
-              Navigator.pop(context);
-              _mostrarMensaje('Plan eliminado correctamente', Colors.red);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Eliminar', style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }

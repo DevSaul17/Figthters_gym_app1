@@ -27,45 +27,21 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
 
   final List<PlanMembresia> _planesDisponibles = [
     PlanMembresia(
-      id: 1,
+      id: '1',
       nombre: 'Fitness Musculacion',
       descripcion:
           'Plan enfocado en desarrollo muscular y acondicionamiento físico general',
-      precio: 120.0,
-      beneficios: [
-        'Acceso completo al área de pesas',
-        'Uso de máquinas cardiovasculares',
-        'Rutinas personalizadas',
-        'Horario: 6:00 AM - 10:00 PM',
-        'Ducha y vestuarios',
-      ],
     ),
     PlanMembresia(
-      id: 2,
+      id: '2',
       nombre: 'Hibrido',
       descripcion: 'Combinación de entrenamiento funcional, pesas y cardio',
-      precio: 180.0,
-      beneficios: [
-        'Acceso completo al gimnasio',
-        'Clases funcionales incluidas',
-        'Entrenamiento personalizado',
-        'Horario: 24/7',
-        'Ducha y vestuarios premium',
-      ],
     ),
     PlanMembresia(
-      id: 3,
+      id: '3',
       nombre: 'Artes Marciales',
       descripcion:
           'Plan especializado en disciplinas de combate y defensa personal',
-      precio: 200.0,
-      beneficios: [
-        'Clases de Muay Thai, Boxing y MMA',
-        'Entrenadores especializados',
-        'Equipo de protección incluido',
-        'Preparación para competencias',
-        'Horario flexible de clases',
-      ],
     ),
   ];
 
