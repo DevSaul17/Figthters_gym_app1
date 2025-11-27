@@ -1,26 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
-
-class Entrenador {
-  final int id;
-  final String dni;
-  final String nombre;
-  final String apellido;
-  final String celular;
-  final String correo;
-  final String contrasena;
-
-  Entrenador({
-    required this.id,
-    required this.dni,
-    required this.nombre,
-    required this.apellido,
-    required this.celular,
-    required this.correo,
-    required this.contrasena,
-  });
-}
+import '../../services/firestore_service.dart';
 
 class EntrenadoresScreen extends StatefulWidget {
   const EntrenadoresScreen({super.key});
@@ -30,26 +12,7 @@ class EntrenadoresScreen extends StatefulWidget {
 }
 
 class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
-  final List<Entrenador> _entrenadores = [
-    Entrenador(
-      id: 1,
-      dni: '12345678',
-      nombre: 'Carlos',
-      apellido: 'Rodriguez',
-      celular: '987654321',
-      correo: 'carlos@gym.com',
-      contrasena: '123456',
-    ),
-    Entrenador(
-      id: 2,
-      dni: '87654321',
-      nombre: 'Maria',
-      apellido: 'Lopez',
-      celular: '912345678',
-      correo: 'maria@gym.com',
-      contrasena: 'abcdef',
-    ),
-  ];
+  final FirestoreService _firestore = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
@@ -64,28 +27,58 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
           'ENTRENADORES',
           style: AppTextStyles.appBarTitle.copyWith(color: Colors.white),
         ),
+        automaticallyImplyLeading: false,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.of(context).pop();
           },
         ),
         actions: [
           IconButton(
             icon: Icon(Icons.add, color: Colors.white, size: 28),
-            onPressed: _mostrarDialogoAgregarEntrenador,
+            onPressed: () => _mostrarDialogoAgregarEntrenador(),
           ),
         ],
       ),
-      body: _entrenadores.isEmpty
-          ? _buildListaVacia()
-          : ListView.builder(
-              padding: EdgeInsets.all(16),
-              itemCount: _entrenadores.length,
-              itemBuilder: (context, index) {
-                return _buildEntrenadorCard(_entrenadores[index]);
-              },
-            ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _firestore.streamCollection(
+          'entrenadores',
+          queryBuilder: (q) => q.orderBy('nombre'),
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  SizedBox(height: 12),
+                  Text('Error al cargar entrenadores: ${snapshot.error}'),
+                ],
+              ),
+            );
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return _buildListaVacia();
+          }
+
+          return ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              return _buildEntrenadorCard(doc.id, data);
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -119,7 +112,12 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
     );
   }
 
-  Widget _buildEntrenadorCard(Entrenador entrenador) {
+  Widget _buildEntrenadorCard(String id, Map<String, dynamic> data) {
+    final nombre = (data['nombre'] ?? '-').toString();
+    final apellido = (data['apellido'] ?? '-').toString();
+    final dni = (data['dni'] ?? '-').toString();
+    final celular = (data['celular'] ?? '-').toString();
+    final correo = (data['correo'] ?? '-').toString();
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -149,7 +147,7 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
           child: Icon(Icons.fitness_center, color: AppColors.primary, size: 24),
         ),
         title: Text(
-          '${entrenador.nombre} ${entrenador.apellido}',
+          '$nombre $apellido',
           style: AppTextStyles.mainText.copyWith(
             fontWeight: FontWeight.bold,
             fontSize: 18,
@@ -161,15 +159,15 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'DNI: ${entrenador.dni}',
+                'DNI: $dni',
                 style: AppTextStyles.contactText.copyWith(fontSize: 14),
               ),
               Text(
-                'Celular: ${entrenador.celular}',
+                'Celular: $celular',
                 style: AppTextStyles.contactText.copyWith(fontSize: 14),
               ),
               Text(
-                'Email: ${entrenador.correo}',
+                'Email: $correo',
                 style: AppTextStyles.contactText.copyWith(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -183,13 +181,13 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
           onSelected: (value) {
             switch (value) {
               case 'ver':
-                _mostrarDialogoVerEntrenador(entrenador);
+                _mostrarDialogoVerEntrenador(data);
                 break;
               case 'editar':
-                _mostrarDialogoEditarEntrenador(entrenador);
+                _mostrarDialogoEditarEntrenador(id, data);
                 break;
               case 'eliminar':
-                _mostrarDialogoEliminarEntrenador(entrenador);
+                _mostrarDialogoEliminarEntrenador(id, nombre, apellido);
                 break;
             }
           },
@@ -230,292 +228,49 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
     );
   }
 
-  void _mostrarDialogoAgregarEntrenador() {
-    _mostrarDialogoEntrenador();
-  }
-
-  void _mostrarDialogoEditarEntrenador(Entrenador entrenador) {
-    _mostrarDialogoEntrenador(entrenador: entrenador);
-  }
-
-  void _mostrarDialogoEntrenador({Entrenador? entrenador}) {
-    final formKey = GlobalKey<FormState>();
-    final dniController = TextEditingController(text: entrenador?.dni ?? '');
-    final nombreController = TextEditingController(
-      text: entrenador?.nombre ?? '',
-    );
-    final apellidoController = TextEditingController(
-      text: entrenador?.apellido ?? '',
-    );
-    final celularController = TextEditingController(
-      text: entrenador?.celular ?? '',
-    );
-    final correoController = TextEditingController(
-      text: entrenador?.correo ?? '',
-    );
-    final contrasenaController = TextEditingController(
-      text: entrenador?.contrasena ?? '',
-    );
-    bool mostrarContrasena = false;
-    bool esEdicion = entrenador != null;
-
-    showDialog(
+  void _mostrarDialogoAgregarEntrenador() async {
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(
-                esEdicion ? Icons.edit : Icons.person_add,
-                color: esEdicion ? Colors.orange : Colors.green,
-              ),
-              SizedBox(width: 8),
-              Text(
-                esEdicion ? 'Editar Entrenador' : 'Agregar Entrenador',
-                style: AppTextStyles.mainText.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: esEdicion ? Colors.orange : Colors.green,
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // DNI
-                  TextFormField(
-                    controller: dniController,
-                    decoration: InputDecoration(
-                      labelText: 'DNI',
-                      prefixIcon: Icon(
-                        Icons.credit_card,
-                        color: AppColors.primary,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(8),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa el DNI';
-                      }
-                      if (value.length < 8) {
-                        return 'El DNI debe tener 8 dígitos';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 12),
-
-                  // Nombre
-                  TextFormField(
-                    controller: nombreController,
-                    decoration: InputDecoration(
-                      labelText: 'Nombre',
-                      prefixIcon: Icon(Icons.person, color: AppColors.primary),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa el nombre';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 12),
-
-                  // Apellido
-                  TextFormField(
-                    controller: apellidoController,
-                    decoration: InputDecoration(
-                      labelText: 'Apellido',
-                      prefixIcon: Icon(
-                        Icons.person_outline,
-                        color: AppColors.primary,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa el apellido';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 12),
-
-                  // Celular
-                  TextFormField(
-                    controller: celularController,
-                    decoration: InputDecoration(
-                      labelText: 'Celular',
-                      prefixIcon: Icon(Icons.phone, color: AppColors.primary),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(9),
-                    ],
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa el celular';
-                      }
-                      if (value.length != 9) {
-                        return 'El celular debe tener 9 dígitos';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 12),
-
-                  // Correo
-                  TextFormField(
-                    controller: correoController,
-                    decoration: InputDecoration(
-                      labelText: 'Correo Electrónico',
-                      prefixIcon: Icon(Icons.email, color: AppColors.primary),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa el correo';
-                      }
-                      if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                      ).hasMatch(value)) {
-                        return 'Ingresa un correo válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 12),
-
-                  // Contraseña
-                  TextFormField(
-                    controller: contrasenaController,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      prefixIcon: Icon(Icons.lock, color: AppColors.primary),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          mostrarContrasena
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          color: AppColors.primary,
-                        ),
-                        onPressed: () {
-                          setStateDialog(() {
-                            mostrarContrasena = !mostrarContrasena;
-                          });
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    obscureText: !mostrarContrasena,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor ingresa la contraseña';
-                      }
-                      if (value.length < 6) {
-                        return 'La contraseña debe tener al menos 6 caracteres';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  if (esEdicion) {
-                    setState(() {
-                      int index = _entrenadores.indexWhere(
-                        (e) => e.id == entrenador.id,
-                      );
-                      if (index != -1) {
-                        _entrenadores[index] = Entrenador(
-                          id: entrenador.id,
-                          dni: dniController.text,
-                          nombre: nombreController.text,
-                          apellido: apellidoController.text,
-                          celular: celularController.text,
-                          correo: correoController.text,
-                          contrasena: contrasenaController.text,
-                        );
-                      }
-                    });
-                    Navigator.pop(context);
-                    _mostrarMensaje(
-                      'Entrenador actualizado correctamente',
-                      Colors.orange,
-                    );
-                  } else {
-                    setState(() {
-                      _entrenadores.add(
-                        Entrenador(
-                          id: DateTime.now().millisecondsSinceEpoch,
-                          dni: dniController.text,
-                          nombre: nombreController.text,
-                          apellido: apellidoController.text,
-                          celular: celularController.text,
-                          correo: correoController.text,
-                          contrasena: contrasenaController.text,
-                        ),
-                      );
-                    });
-                    Navigator.pop(context);
-                    _mostrarMensaje(
-                      'Entrenador agregado correctamente',
-                      Colors.green,
-                    );
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: esEdicion ? Colors.orange : Colors.green,
-              ),
-              child: Text(
-                esEdicion ? 'Actualizar' : 'Agregar',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (ctx) => AddEditEntrenadorDialog(
+        firestore: _firestore,
+        esEdicion: false,
       ),
     );
+
+    if (result == true) {
+      _mostrarMensaje('Entrenador agregado correctamente', Colors.green);
+    }
   }
 
-  void _mostrarDialogoVerEntrenador(Entrenador entrenador) {
+  void _mostrarDialogoEditarEntrenador(String id, Map<String, dynamic> data) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AddEditEntrenadorDialog(
+        firestore: _firestore,
+        esEdicion: true,
+        id: id,
+        data: data,
+      ),
+    );
+
+    if (result == true) {
+      _mostrarMensaje('Entrenador actualizado correctamente', Colors.orange);
+    }
+  }
+
+  void _mostrarDialogoVerEntrenador(Map<String, dynamic> data) {
+    final nombre = (data['nombre'] ?? '-').toString();
+    final apellido = (data['apellido'] ?? '-').toString();
+    final dni = (data['dni'] ?? '-').toString();
+    final celular = (data['celular'] ?? '-').toString();
+    final correo = (data['correo'] ?? '-').toString();
+    final contrasena = (data['contrasena'] ?? '').toString();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
             Icon(Icons.visibility, color: Colors.blue),
@@ -534,23 +289,17 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildCampoDetalle(
-                'Nombre Completo:',
-                '${entrenador.nombre} ${entrenador.apellido}',
-              ),
-              _buildCampoDetalle('DNI:', entrenador.dni),
-              _buildCampoDetalle('Celular:', entrenador.celular),
-              _buildCampoDetalle('Correo:', entrenador.correo),
-              _buildCampoDetalle(
-                'Contraseña:',
-                '•' * entrenador.contrasena.length,
-              ),
+              _buildCampoDetalle('Nombre Completo:', '$nombre $apellido'),
+              _buildCampoDetalle('DNI:', dni),
+              _buildCampoDetalle('Celular:', celular),
+              _buildCampoDetalle('Correo:', correo),
+              _buildCampoDetalle('Contraseña:', '•' * contrasena.length),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text('Cerrar'),
           ),
         ],
@@ -578,10 +327,14 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
     );
   }
 
-  void _mostrarDialogoEliminarEntrenador(Entrenador entrenador) {
+  void _mostrarDialogoEliminarEntrenador(
+    String id,
+    String nombre,
+    String apellido,
+  ) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
             Icon(Icons.warning, color: Colors.red),
@@ -596,21 +349,30 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
           ],
         ),
         content: Text(
-          '¿Estás seguro de que deseas eliminar al entrenador "${entrenador.nombre} ${entrenador.apellido}"? Esta acción no se puede deshacer.',
+          '¿Estás seguro de que deseas eliminar al entrenador "$nombre $apellido"? Esta acción no se puede deshacer.',
           style: AppTextStyles.contactText,
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _entrenadores.removeWhere((e) => e.id == entrenador.id);
-              });
-              Navigator.pop(context);
-              _mostrarMensaje('Entrenador eliminado correctamente', Colors.red);
+            onPressed: () async {
+              try {
+                await _firestore.deleteDocument('entrenadores', id);
+                // cerrar y mostrar mensaje desde la pantalla padre
+                // ignore: use_build_context_synchronously
+                Navigator.of(dialogContext).pop();
+                _mostrarMensaje(
+                  'Entrenador eliminado correctamente',
+                  Colors.red,
+                );
+              } catch (e) {
+                // ignore: use_build_context_synchronously
+                Navigator.of(dialogContext).pop();
+                _mostrarMensaje('Error: $e', Colors.red);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text('Eliminar', style: TextStyle(color: Colors.white)),
@@ -628,6 +390,264 @@ class _EntrenadoresScreenState extends State<EntrenadoresScreen> {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+    );
+  }
+}
+
+/// Dialogo separado y stateful para evitar problemas con context/ANR y manejar loading
+class AddEditEntrenadorDialog extends StatefulWidget {
+  final FirestoreService firestore;
+  final bool esEdicion;
+  final String? id;
+  final Map<String, dynamic>? data;
+
+  const AddEditEntrenadorDialog({
+    super.key,
+    required this.firestore,
+    required this.esEdicion,
+    this.id,
+    this.data,
+  });
+
+  @override
+  State<AddEditEntrenadorDialog> createState() => _AddEditEntrenadorDialogState();
+}
+
+class _AddEditEntrenadorDialogState extends State<AddEditEntrenadorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController dniController;
+  late final TextEditingController nombreController;
+  late final TextEditingController apellidoController;
+  late final TextEditingController celularController;
+  late final TextEditingController correoController;
+  late final TextEditingController contrasenaController;
+
+  bool mostrarContrasena = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    dniController = TextEditingController(text: (widget.data?['dni'] ?? '').toString());
+    nombreController = TextEditingController(text: (widget.data?['nombre'] ?? '').toString());
+    apellidoController = TextEditingController(text: (widget.data?['apellido'] ?? '').toString());
+    celularController = TextEditingController(text: (widget.data?['celular'] ?? '').toString());
+    correoController = TextEditingController(text: (widget.data?['correo'] ?? '').toString());
+    contrasenaController = TextEditingController(text: (widget.data?['contrasena'] ?? '').toString());
+  }
+
+  @override
+  void dispose() {
+    dniController.dispose();
+    nombreController.dispose();
+    apellidoController.dispose();
+    celularController.dispose();
+    correoController.dispose();
+    contrasenaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onCancel() async {
+    if (!mounted) return;
+    Navigator.of(context).pop(false);
+  }
+
+  Future<void> _onSave() async {
+ 
+final Map<String, dynamic> entrenadorData = {
+  'dni': dniController.text.trim(),
+  'nombre': nombreController.text.trim(),
+  'apellido': apellidoController.text.trim(),
+  'celular': celularController.text.trim(),
+  'correo': correoController.text.trim(),
+  'contrasena': contrasenaController.text,
+};
+
+// Solo agregar creadoEn si es nuevo registro
+if (!widget.esEdicion) {
+  // No hagas cast a String. FieldValue.serverTimestamp() se guarda como Timestamp en Firestore.
+  entrenadorData['creadoEn'] = FieldValue.serverTimestamp();
+}
+
+    try {
+      if (widget.esEdicion && widget.id != null) {
+        await widget.firestore.updateDocument('entrenadores', widget.id!, entrenadorData);
+      } else {
+        await widget.firestore.addDocument('entrenadores', entrenadorData);
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      // Cerrar dialogo y mostrar mensaje desde la pantalla padre
+      Navigator.of(context).pop(false);
+      // Pasamos el error al padre mostrando un SnackBar tras cerrar el diálogo
+      final parentContext = ScaffoldMessenger.maybeOf(context);
+      // En caso de no poder mostrar aquí, el padre puede mostrar su propio mensaje.
+      parentContext?.showSnackBar(
+        SnackBar(
+          content: Text('Error al guardar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            widget.esEdicion ? Icons.edit : Icons.person_add,
+            color: widget.esEdicion ? Colors.orange : Colors.green,
+          ),
+          SizedBox(width: 8),
+          Text(
+            widget.esEdicion ? 'Editar Entrenador' : 'Agregar Entrenador',
+            style: AppTextStyles.mainText.copyWith(
+              fontWeight: FontWeight.bold,
+              color: widget.esEdicion ? Colors.orange : Colors.green,
+            ),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // DNI
+              TextFormField(
+                controller: dniController,
+                decoration: InputDecoration(
+                  labelText: 'DNI',
+                  prefixIcon: Icon(Icons.credit_card, color: AppColors.primary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(8),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa el DNI';
+                  if (value.length < 8) return 'El DNI debe tener 8 dígitos';
+                  return null;
+                },
+              ),
+              SizedBox(height: 12),
+
+              // Nombre
+              TextFormField(
+                controller: nombreController,
+                decoration: InputDecoration(
+                  labelText: 'Nombre',
+                  prefixIcon: Icon(Icons.person, color: AppColors.primary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa el nombre';
+                  return null;
+                },
+              ),
+              SizedBox(height: 12),
+
+              // Apellido
+              TextFormField(
+                controller: apellidoController,
+                decoration: InputDecoration(
+                  labelText: 'Apellido',
+                  prefixIcon: Icon(Icons.person_outline, color: AppColors.primary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa el apellido';
+                  return null;
+                },
+              ),
+              SizedBox(height: 12),
+
+              // Celular
+              TextFormField(
+                controller: celularController,
+                decoration: InputDecoration(
+                  labelText: 'Celular',
+                  prefixIcon: Icon(Icons.phone, color: AppColors.primary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(9),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa el celular';
+                  if (value.length != 9) return 'El celular debe tener 9 dígitos';
+                  return null;
+                },
+              ),
+              SizedBox(height: 12),
+
+              // Correo
+              TextFormField(
+                controller: correoController,
+                decoration: InputDecoration(
+                  labelText: 'Correo Electrónico',
+                  prefixIcon: Icon(Icons.email, color: AppColors.primary),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa el correo';
+                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) return 'Ingresa un correo válido';
+                  return null;
+                },
+              ),
+              SizedBox(height: 12),
+
+              // Contraseña
+              TextFormField(
+                controller: contrasenaController,
+                decoration: InputDecoration(
+                  labelText: 'Contraseña',
+                  prefixIcon: Icon(Icons.lock, color: AppColors.primary),
+                  suffixIcon: IconButton(
+                    icon: Icon(mostrarContrasena ? Icons.visibility : Icons.visibility_off, color: AppColors.primary),
+                    onPressed: () => setState(() => mostrarContrasena = !mostrarContrasena),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                obscureText: !mostrarContrasena,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Por favor ingresa la contraseña';
+                  if (value.length < 6) return 'La contraseña debe tener al menos 6 caracteres';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : _onCancel,
+          child: Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _onSave,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.esEdicion ? Colors.orange : Colors.green,
+          ),
+          child: _isLoading
+              ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text(widget.esEdicion ? 'Actualizar' : 'Agregar', style: TextStyle(color: Colors.white)),
+        ),
+      ],
     );
   }
 }
