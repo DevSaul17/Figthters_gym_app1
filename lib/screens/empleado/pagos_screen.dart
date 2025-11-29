@@ -474,9 +474,12 @@ class _PagosScreenState extends State<PagosScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar dialog
-              Navigator.pop(context); // Volver a registro membresía
-              Navigator.pop(context); // Volver a registro cliente
-              Navigator.pop(context); // Volver al home gym
+              // Retornar a registro de membresía con resultado exitoso
+              Navigator.pop(context, {
+                'pagoCompletado': true,
+                'membresiaId': widget.membresiaId,
+                'estado': 'pagada',
+              });
             },
             child: Text('Finalizar'),
           ),

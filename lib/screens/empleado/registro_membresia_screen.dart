@@ -879,7 +879,7 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
           _mostrarMensaje('Membresía registrada correctamente', Colors.green);
 
           // Navegar a la pantalla de pagos con el ID de la membresía
-          Navigator.push(
+          final resultadoPago = await Navigator.push<Map<String, dynamic>>(
             context,
             MaterialPageRoute(
               builder: (context) => PagosScreen(
@@ -896,6 +896,24 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
               ),
             ),
           );
+
+          // Si el pago se completó, retornar al home gym con resultado exitoso
+          if (mounted &&
+              resultadoPago != null &&
+              resultadoPago['pagoCompletado'] == true) {
+            Navigator.pop(context, {
+              'pagoCompletado': true,
+              'membresiaId': docRef.id,
+              'planNombre': _planSeleccionado,
+            });
+          } else if (mounted) {
+            // Si no se completó el pago, retornar que solo se creó la membresía
+            Navigator.pop(context, {
+              'membresiaCreada': true,
+              'pagoCompletado': false,
+              'membresiaId': docRef.id,
+            });
+          }
         }
       } catch (e) {
         if (mounted) {

@@ -78,18 +78,10 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
         _isLoading = true;
       });
 
-
       // Primero intentamos obtener todos los documentos de la colección planes
       final querySnapshot = await FirebaseFirestore.instance
           .collection('planes')
           .get();
-
-
-      if (querySnapshot.docs.isNotEmpty) {
-        for (var doc in querySnapshot.docs) {
-          print('📄 Datos: ${doc.data()}');
-        }
-      }
 
       // Filtrar solo los planes activos
       final planes = querySnapshot.docs
@@ -100,8 +92,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
           .map((doc) => PlanMembresia.fromFirestore(doc))
           .toList();
 
-      print('✅ Planes activos cargados: ${planes.length}');
-
       if (mounted) {
         setState(() {
           _planes = planes;
@@ -109,7 +99,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error al cargar planes: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -411,19 +400,10 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                             descripcion: descripcionController.text.trim(),
                           );
 
-                          print(
-                            '💾 Intentando guardar plan: ${nuevoPlan.nombre}',
-                          );
-                          print(
-                            '💾 Datos a guardar: ${nuevoPlan.toFirestoreCreate()}',
-                          );
-
                           // Usar FirebaseFirestore directamente para mejor debugging
-                          final docRef = await FirebaseFirestore.instance
+                          await FirebaseFirestore.instance
                               .collection('planes')
                               .add(nuevoPlan.toFirestoreCreate());
-
-                          print('✅ Plan guardado con ID: ${docRef.id}');
 
                           if (context.mounted) {
                             Navigator.pop(context);
@@ -434,7 +414,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                           }
                           await _cargarPlanes();
                         } catch (e) {
-                          print('❌ Error al agregar plan: $e');
                           if (context.mounted) {
                             _mostrarMensaje(
                               'Error al agregar plan: $e',
@@ -622,17 +601,10 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                             activo: plan.activo,
                           );
 
-                          print('🔄 Actualizando plan ID: ${plan.id}');
-                          print(
-                            '🔄 Nuevos datos: ${planActualizado.toFirestore()}',
-                          );
-
                           await FirebaseFirestore.instance
                               .collection('planes')
                               .doc(plan.id!)
                               .update(planActualizado.toFirestore());
-
-                          print('✅ Plan actualizado exitosamente');
 
                           if (context.mounted) {
                             Navigator.pop(context);
@@ -643,7 +615,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                           }
                           await _cargarPlanes();
                         } catch (e) {
-                          print('❌ Error al actualizar plan: $e');
                           if (context.mounted) {
                             _mostrarMensaje(
                               'Error al actualizar plan: $e',
@@ -746,8 +717,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                       });
 
                       try {
-                        print('🗑️ Eliminando plan ID: ${plan.id}');
-
                         await FirebaseFirestore.instance
                             .collection('planes')
                             .doc(plan.id!)
@@ -755,8 +724,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                               'activo': false,
                               'eliminado_en': FieldValue.serverTimestamp(),
                             });
-
-                        print('✅ Plan marcado como inactivo');
 
                         if (context.mounted) {
                           Navigator.pop(context);
@@ -767,7 +734,6 @@ class _GestionarPlanesScreenState extends State<GestionarPlanesScreen> {
                         }
                         await _cargarPlanes();
                       } catch (e) {
-                        print('❌ Error al eliminar plan: $e');
                         if (context.mounted) {
                           _mostrarMensaje(
                             'Error al eliminar plan: $e',
