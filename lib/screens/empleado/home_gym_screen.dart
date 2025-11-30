@@ -177,14 +177,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
 
           Row(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Citas Hoy',
-                  '12',
-                  Icons.calendar_today,
-                  Colors.blue,
-                ),
-              ),
+              Expanded(child: _buildCitasHoyCard()),
               SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
@@ -203,14 +196,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
             children: [
               Expanded(child: _buildEquiposActivosCard()),
               SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Ingresos Hoy',
-                  '\$450',
-                  Icons.attach_money,
-                  Colors.purple,
-                ),
-              ),
+              Expanded(child: _buildIngresosHoyCard()),
             ],
           ),
 
@@ -710,6 +696,97 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
           '$count',
           Icons.fitness_center,
           Colors.orange,
+        );
+      },
+    );
+  }
+
+  Widget _buildCitasHoyCard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('prospectos').snapshots(),
+      builder: (context, snapshot) {
+        int citasHoy = 0;
+
+        if (snapshot.hasData) {
+          final hoy = DateTime.now();
+          final inicio = DateTime(hoy.year, hoy.month, hoy.day);
+          final fin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59);
+
+          citasHoy = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final citaFecha = data['citaFecha'];
+
+            if (citaFecha == null) return false;
+
+            DateTime? fecha;
+            if (citaFecha is Timestamp) {
+              fecha = citaFecha.toDate();
+            } else if (citaFecha is DateTime) {
+              fecha = citaFecha;
+            }
+
+            if (fecha == null) return false;
+
+            return fecha.isAfter(inicio) && fecha.isBefore(fin);
+          }).length;
+        }
+
+        return _buildStatCard(
+          'Citas Hoy',
+          '$citasHoy',
+          Icons.calendar_today,
+          Colors.blue,
+        );
+      },
+    );
+  }
+
+  Widget _buildIngresosHoyCard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('membresias').snapshots(),
+      builder: (context, snapshot) {
+        double ingresosHoy = 0.0;
+
+        if (snapshot.hasData) {
+          final hoy = DateTime.now();
+          final inicio = DateTime(hoy.year, hoy.month, hoy.day);
+          final fin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59);
+
+          // ignore: avoid_types_as_parameter_names
+          ingresosHoy = snapshot.data!.docs.fold(0.0, (sum, doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final fechaPago = data['fechaPago'];
+            final estado = data['estado'];
+            final monto = data['monto'];
+
+            // Solo contar pagos completados de hoy
+            if (estado != 'pagada' || monto == null) return sum;
+
+            if (fechaPago == null) return sum;
+
+            DateTime? fecha;
+            if (fechaPago is Timestamp) {
+              fecha = fechaPago.toDate();
+            } else if (fechaPago is DateTime) {
+              fecha = fechaPago;
+            }
+
+            if (fecha == null) return sum;
+
+            if (fecha.isAfter(inicio) && fecha.isBefore(fin)) {
+              return sum + (monto as num).toDouble();
+            }
+            return sum;
+          });
+        }
+
+        final montoFormato = ingresosHoy.toStringAsFixed(2);
+
+        return _buildStatCard(
+          'Ingresos Hoy',
+          'S/.$montoFormato',
+          Icons.attach_money,
+          Colors.purple,
         );
       },
     );

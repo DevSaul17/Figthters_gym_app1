@@ -585,95 +585,174 @@ class _CitasScreenState extends State<CitasScreen> {
                                 ),
                                 SizedBox(width: 12),
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () async {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (BuildContext context) {
-                                          return AlertDialog(
-                                            title: Text('Confirmar'),
-                                            content: Text(
-                                              '¿Estás seguro de que deseas marcar esta cita como completada?',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                  context,
-                                                  false,
-                                                ),
-                                                child: Text('Cancelar'),
-                                              ),
-                                              ElevatedButton(
-                                                onPressed: () => Navigator.pop(
-                                                  context,
-                                                  true,
-                                                ),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                                child: Text('Sí, marcar'),
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      );
+                                  child: data['completada'] == true
+                                      ? ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (BuildContext context) {
+                                                return AlertDialog(
+                                                  title: Text('Confirmar'),
+                                                  content: Text(
+                                                    '¿Estás seguro de que deseas desmarcar esta cita como completada?',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            false,
+                                                          ),
+                                                      child: Text('Cancelar'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            true,
+                                                          ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.orange,
+                                                          ),
+                                                      child: Text(
+                                                        'Sí, desmarcar',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
 
-                                      if (confirm == true) {
-                                        try {
-                                          await FirebaseFirestore.instance
-                                              .collection('prospectos')
-                                              .doc(doc.id)
-                                              .update({
-                                                'completada': true,
-                                                'fechaAtencion':
-                                                    Timestamp.now(),
-                                              });
-                                          ScaffoldMessenger.of(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Cita marcada como completada',
-                                              ),
-                                              backgroundColor: Colors.green,
-                                              duration: Duration(seconds: 2),
+                                            if (confirm == true) {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('prospectos')
+                                                    .doc(doc.id)
+                                                    .update({
+                                                      'completada': false,
+                                                      'fechaAtencion': null,
+                                                    });
+                                                // ignore: use_build_context_synchronously
+                                                _showSnackBar(
+                                                  'Cita desmarcada',
+                                                  Colors.orange,
+                                                );
+                                              } catch (e) {
+                                                // ignore: use_build_context_synchronously
+                                                _showSnackBar(
+                                                  'Error al desmarcar cita: $e',
+                                                  Colors.red,
+                                                );
+                                              }
+                                            }
+                                          },
+                                          icon: Icon(
+                                            Icons.cancel,
+                                            color: Colors.white,
+                                          ),
+                                          label: Text(
+                                            ' Desmarcar',
+                                            style: TextStyle(
+                                              color: Colors.white,
                                             ),
-                                          );
-                                        } catch (e) {
-                                          ScaffoldMessenger.of(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Error al completar cita: $e',
-                                              ),
-                                              backgroundColor: Colors.red,
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.orange,
+                                            foregroundColor: Colors.white,
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12,
                                             ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                    icon: Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                    ),
-                                    label: Text(
-                                      ' Marcar',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                  ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        )
+                                      : ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (BuildContext context) {
+                                                return AlertDialog(
+                                                  title: Text('Confirmar'),
+                                                  content: Text(
+                                                    '¿Estás seguro de que deseas marcar esta cita como completada?',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            false,
+                                                          ),
+                                                      child: Text('Cancelar'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            true,
+                                                          ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors.green,
+                                                          ),
+                                                      child: Text('Sí, marcar'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+
+                                            if (confirm == true) {
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('prospectos')
+                                                    .doc(doc.id)
+                                                    .update({
+                                                      'completada': true,
+                                                      'fechaAtencion':
+                                                          Timestamp.now(),
+                                                    });
+                                                // ignore: use_build_context_synchronously
+                                                _showSnackBar(
+                                                  'Cita marcada como completada',
+                                                  Colors.green,
+                                                );
+                                              } catch (e) {
+                                                // ignore: use_build_context_synchronously
+                                                _showSnackBar(
+                                                  'Error al completar cita: $e',
+                                                  Colors.red,
+                                                );
+                                              }
+                                            }
+                                          },
+                                          icon: Icon(
+                                            Icons.check_circle,
+                                            color: Colors.white,
+                                          ),
+                                          label: Text(
+                                            ' Marcar',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                            foregroundColor: Colors.white,
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
                                 ),
                               ],
                             ),
@@ -927,6 +1006,16 @@ class _CitasScreenState extends State<CitasScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showSnackBar(String message, Color backgroundColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        duration: Duration(seconds: 2),
+      ),
     );
   }
 }
