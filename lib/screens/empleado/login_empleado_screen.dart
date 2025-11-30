@@ -386,12 +386,6 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
             ),
           );
         }
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
     }
   }

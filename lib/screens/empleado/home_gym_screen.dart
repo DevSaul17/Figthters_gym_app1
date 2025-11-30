@@ -8,6 +8,7 @@ import 'agregar_horario_cita_screen.dart';
 import 'configuracion_screen.dart';
 import 'equipos_screen.dart';
 import 'registro_membresia_screen.dart';
+import 'generar_credenciales_screen.dart';
 import '../../home_screen.dart';
 
 class HomeGymScreen extends StatefulWidget {
@@ -245,10 +246,10 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   () => _navegarAAgregarHorarioCita(),
                 ),
                 _buildActionCard(
-                  'Ver Reportes',
-                  Icons.bar_chart,
+                  'Generar credenciales',
+                  Icons.vpn_key,
                   Colors.orange,
-                  () => _mostrarEnDesarrollo('Reportes'),
+                  () => _navegarAGenerarCredenciales(),
                 ),
                 _buildActionCard(
                   'Configuración',
@@ -295,14 +296,15 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
           ),
           SizedBox(height: 16),
 
-          // Lista de clientes
+          // Lista de clientes con membresías
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('clientes')
+                  .collection('membresias')
                   .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (context, membresiaSnapshot) {
+                if (membresiaSnapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -315,7 +317,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   );
                 }
 
-                if (snapshot.hasError) {
+                if (membresiaSnapshot.hasError) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -323,7 +325,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                         Icon(Icons.error, color: Colors.red, size: 60),
                         SizedBox(height: 16),
                         Text(
-                          'Error al cargar clientes: ${snapshot.error}',
+                          'Error al cargar clientes: ${membresiaSnapshot.error}',
                           style: TextStyle(color: Colors.red),
                           textAlign: TextAlign.center,
                         ),
@@ -339,28 +341,19 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   );
                 }
 
-                // Filtrar clientes activos en el cliente y ordenar por fecha
-                final allDocs = snapshot.data?.docs ?? [];
-                final clienteDocs = allDocs.where((doc) {
+                // Obtener IDs únicos de clientes que tienen membresías
+                final membresiasData = membresiaSnapshot.data?.docs ?? [];
+                final clienteIds = <String>{};
+
+                for (var doc in membresiasData) {
                   final data = doc.data() as Map<String, dynamic>;
-                  return data['activo'] == true;
-                }).toList();
+                  final clienteId = data['clienteId'];
+                  if (clienteId != null) {
+                    clienteIds.add(clienteId.toString());
+                  }
+                }
 
-                // Ordenar por fecha de creación (más recientes primero)
-                clienteDocs.sort((a, b) {
-                  final aData = a.data() as Map<String, dynamic>;
-                  final bData = b.data() as Map<String, dynamic>;
-                  final aTimestamp = aData['creadoEn'] as Timestamp?;
-                  final bTimestamp = bData['creadoEn'] as Timestamp?;
-
-                  if (aTimestamp == null && bTimestamp == null) return 0;
-                  if (aTimestamp == null) return 1;
-                  if (bTimestamp == null) return -1;
-
-                  return bTimestamp.compareTo(aTimestamp);
-                });
-
-                if (clienteDocs.isEmpty) {
+                if (clienteIds.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -373,7 +366,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                         ),
                         SizedBox(height: 16),
                         Text(
-                          'No hay clientes registrados',
+                          'No hay clientes con membresías',
                           style: AppTextStyles.mainText.copyWith(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -382,7 +375,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Presiona "Agregar" para registrar el primer cliente',
+                          'Los clientes con membresías aparecerán aquí',
                           style: AppTextStyles.contactText.copyWith(
                             color: Colors.grey[500],
                           ),
@@ -393,15 +386,61 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   );
                 }
 
-                return ListView.separated(
-                  itemCount: clienteDocs.length,
-                  separatorBuilder: (_, __) => SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final clienteDoc = clienteDocs[index];
-                    final clienteData =
-                        clienteDoc.data() as Map<String, dynamic>;
+                // Ahora obtener los datos de los clientes que tienen membresías
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('clientes')
+                      .snapshots(),
+                  builder: (context, clienteSnapshot) {
+                    if (clienteSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
+                      );
+                    }
 
-                    return _buildClienteCard(clienteDoc.id, clienteData);
+                    if (clienteSnapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Error al cargar clientes',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      );
+                    }
+
+                    // Filtrar clientes que tienen membresías
+                    final allClienteDocs = clienteSnapshot.data?.docs ?? [];
+                    final clienteDocs = allClienteDocs.where((doc) {
+                      return clienteIds.contains(doc.id);
+                    }).toList();
+
+                    // Ordenar por fecha de creación (más recientes primero)
+                    clienteDocs.sort((a, b) {
+                      final aData = a.data() as Map<String, dynamic>;
+                      final bData = b.data() as Map<String, dynamic>;
+                      final aTimestamp = aData['creadoEn'] as Timestamp?;
+                      final bTimestamp = bData['creadoEn'] as Timestamp?;
+
+                      if (aTimestamp == null && bTimestamp == null) return 0;
+                      if (aTimestamp == null) return 1;
+                      if (bTimestamp == null) return -1;
+
+                      return bTimestamp.compareTo(aTimestamp);
+                    });
+
+                    return ListView.separated(
+                      itemCount: clienteDocs.length,
+                      separatorBuilder: (_, __) => SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final clienteDoc = clienteDocs[index];
+                        final clienteData =
+                            clienteDoc.data() as Map<String, dynamic>;
+
+                        return _buildClienteCard(clienteDoc.id, clienteData);
+                      },
+                    );
                   },
                 );
               },
@@ -686,18 +725,56 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
           final allDocs = snapshot.data?.docs ?? [];
           final docs = allDocs.toList();
 
-          // Ordenar por fecha de creación (más recientes primero)
+          // Ordenar por fecha de cita (más cercanas primero)
           docs.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            final aTimestamp = aData['creadoEn'] as Timestamp?;
-            final bTimestamp = bData['creadoEn'] as Timestamp?;
+            final aCita = aData['citaFecha'];
+            final bCita = bData['citaFecha'];
 
-            if (aTimestamp == null && bTimestamp == null) return 0;
-            if (aTimestamp == null) return 1;
-            if (bTimestamp == null) return -1;
+            // Convertir a DateTime para comparación
+            DateTime? aDateTime;
+            DateTime? bDateTime;
 
-            return bTimestamp.compareTo(aTimestamp);
+            if (aCita is Timestamp) {
+              aDateTime = aCita.toDate();
+            } else if (aCita is String) {
+              try {
+                aDateTime = DateTime.parse(aCita);
+              } catch (e) {
+                aDateTime = null;
+              }
+            } else if (aCita is DateTime) {
+              aDateTime = aCita;
+            }
+
+            if (bCita is Timestamp) {
+              bDateTime = bCita.toDate();
+            } else if (bCita is String) {
+              try {
+                bDateTime = DateTime.parse(bCita);
+              } catch (e) {
+                bDateTime = null;
+              }
+            } else if (bCita is DateTime) {
+              bDateTime = bCita;
+            }
+
+            // Priorizar registros con cita sobre los que no tienen
+            if (aDateTime == null && bDateTime == null) {
+              // Si ambos no tienen cita, ordenar por fecha de creación
+              final aCreado = aData['creadoEn'] as Timestamp?;
+              final bCreado = bData['creadoEn'] as Timestamp?;
+              if (aCreado == null && bCreado == null) return 0;
+              if (aCreado == null) return 1;
+              if (bCreado == null) return -1;
+              return aCreado.compareTo(bCreado);
+            }
+            if (aDateTime == null) return 1; // Sin cita va al final
+            if (bDateTime == null) return -1; // Con cita va al principio
+
+            // Ambos tienen cita, ordenar por fecha más cercana
+            return aDateTime.compareTo(bDateTime);
           });
 
           if (docs.isEmpty) {
@@ -741,156 +818,274 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   dt = DateTime.now();
                 }
                 try {
-                  citaTexto = DateFormat(
-                    "d 'de' MMMM 'de' y, h:mm a",
-                    'es',
-                  ).format(dt.toLocal());
+                  // Formato mejorado: fecha completa + hora en 24h
+                  final now = DateTime.now();
+                  final today = DateTime(now.year, now.month, now.day);
+                  final citaDate = DateTime(dt.year, dt.month, dt.day);
+
+                  if (citaDate == today) {
+                    // Si es hoy, mostrar solo "Hoy" + hora
+                    citaTexto = "Hoy ${DateFormat('HH:mm').format(dt)}";
+                  } else {
+                    // Si es otro día, mostrar fecha + hora
+                    citaTexto =
+                        "${DateFormat('dd/MM/yyyy').format(dt)} ${DateFormat('HH:mm').format(dt)}";
+                  }
                 } catch (e) {
                   citaTexto = dt.toLocal().toString();
                 }
               }
 
-              return Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      // ignore: deprecated_member_use
-                      color: Colors.grey.withOpacity(0.1),
-                      blurRadius: 6,
-                    ),
-                  ],
+              return Card(
+                elevation: 4,
+                margin: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        // ignore: deprecated_member_use
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.person, color: AppColors.primary),
+                child: Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: [Colors.white, Colors.grey.shade50],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header con icono y info principal
+                      Row(
                         children: [
-                          Text(
-                            '$nombre $apellidos',
-                            style: AppTextStyles.mainText.copyWith(
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              // ignore: deprecated_member_use
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.event_available,
+                              color: AppColors.primary,
+                              size: 24,
                             ),
                           ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Celular: $celular',
-                            style: AppTextStyles.contactText,
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$nombre $apellidos',
+                                  style: AppTextStyles.mainText.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Prospecto',
+                                  style: AppTextStyles.contactText.copyWith(
+                                    color: AppColors.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Cita: $citaTexto',
-                            style: AppTextStyles.contactText.copyWith(
-                              color: Colors.grey[700],
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'ACTIVO',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        // Mostrar todos los datos del prospecto en un diálogo
-                        showDialog(
-                          context: context,
-                          builder: (_) {
-                            // Helper local para formatear fechas (Timestamp/DateTime/String)
-                            String formatDate(dynamic raw) {
-                              if (raw == null) return '-';
-                              DateTime dt;
-                              if (raw is Timestamp) {
-                                dt = raw.toDate();
-                              } else if (raw is DateTime)
-                                // ignore: curly_braces_in_flow_control_structures
-                                dt = raw;
-                              else if (raw is String) {
-                                try {
-                                  dt = DateTime.parse(raw);
-                                } catch (e) {
-                                  return raw.toString();
-                                }
-                              } else {
-                                return raw.toString();
-                              }
-                              try {
-                                return DateFormat(
-                                  "d 'de' MMMM 'de' y, h:mm a",
-                                  'es',
-                                ).format(dt.toLocal());
-                              } catch (e) {
-                                return dt.toLocal().toString();
-                              }
-                            }
 
-                            final creadoEnRaw = data['creadoEn'];
-                            final creadoEn = formatDate(creadoEnRaw);
-                            final citaFechaRaw = data['citaFecha'];
-                            final citaFecha = formatDate(citaFechaRaw);
+                      SizedBox(height: 16),
 
-                            // Build a scrollable list of fields
-                            return AlertDialog(
-                              title: Text('$nombre $apellidos'),
-                              content: SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _detailRow('Nombre', nombre),
-                                    _detailRow('Apellidos', apellidos),
-                                    _detailRow('Celular', celular),
-                                    _detailRow(
-                                      'Edad',
-                                      (data['edad']?.toString() ?? '-'),
-                                    ),
-                                    _detailRow(
-                                      'Género',
-                                      (data['genero'] ?? '-'),
-                                    ),
-                                    _detailRow(
-                                      'Objetivo',
-                                      (data['objetivo'] ?? '-'),
-                                    ),
-                                    _detailRow(
-                                      'Peso',
-                                      (data['peso']?.toString() ?? '-'),
-                                    ),
-                                    _detailRow(
-                                      'Talla',
-                                      (data['talla']?.toString() ?? '-'),
-                                    ),
-                                    _detailRow('Cita Fecha', citaFecha),
-                                    _detailRow('Creado En', creadoEn),
-                                  ],
+                      // Información de contacto
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.phone,
+                              color: Colors.blue.shade600,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              celular,
+                              style: AppTextStyles.contactText.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 12),
+
+                      // Información de la cita
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              color: Colors.orange.shade600,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                citaTexto,
+                                style: AppTextStyles.contactText.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.orange.shade700,
                                 ),
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text('Cerrar'),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Text('Ver', style: TextStyle(color: Colors.white)),
-                    ),
-                  ],
+
+                      SizedBox(height: 16),
+
+                      // Botón de acción
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                // Mostrar todos los datos del prospecto en un diálogo
+                                showDialog(
+                                  context: context,
+                                  builder: (_) {
+                                    // Helper local para formatear fechas (Timestamp/DateTime/String)
+                                    String formatDate(dynamic raw) {
+                                      if (raw == null) return '-';
+                                      DateTime dt;
+                                      if (raw is Timestamp) {
+                                        dt = raw.toDate();
+                                      } else if (raw is DateTime)
+                                        // ignore: curly_braces_in_flow_control_structures
+                                        dt = raw;
+                                      else if (raw is String) {
+                                        try {
+                                          dt = DateTime.parse(raw);
+                                        } catch (e) {
+                                          return raw.toString();
+                                        }
+                                      } else {
+                                        return raw.toString();
+                                      }
+                                      try {
+                                        return DateFormat(
+                                          "d 'de' MMMM 'de' y, h:mm a",
+                                          'es',
+                                        ).format(dt.toLocal());
+                                      } catch (e) {
+                                        return dt.toLocal().toString();
+                                      }
+                                    }
+
+                                    final creadoEnRaw = data['creadoEn'];
+                                    final creadoEn = formatDate(creadoEnRaw);
+                                    final citaFechaRaw = data['citaFecha'];
+                                    final citaFecha = formatDate(citaFechaRaw);
+
+                                    // Build a scrollable list of fields
+                                    return AlertDialog(
+                                      title: Text('$nombre $apellidos'),
+                                      content: SingleChildScrollView(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            _detailRow('Nombre', nombre),
+                                            _detailRow('Apellidos', apellidos),
+                                            _detailRow('Celular', celular),
+                                            _detailRow(
+                                              'Edad',
+                                              (data['edad']?.toString() ?? '-'),
+                                            ),
+                                            _detailRow(
+                                              'Género',
+                                              (data['genero'] ?? '-'),
+                                            ),
+                                            _detailRow(
+                                              'Objetivo',
+                                              (data['objetivo'] ?? '-'),
+                                            ),
+                                            _detailRow(
+                                              'Peso',
+                                              (data['peso']?.toString() ?? '-'),
+                                            ),
+                                            _detailRow(
+                                              'Talla',
+                                              (data['talla']?.toString() ??
+                                                  '-'),
+                                            ),
+                                            _detailRow('Cita Fecha', citaFecha),
+                                            _detailRow('Creado En', creadoEn),
+                                          ],
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: Text('Cerrar'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                              icon: Icon(Icons.visibility, color: Colors.white),
+                              label: Text(
+                                'Ver Detalles',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -1009,15 +1204,6 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
     );
   }
 
-  void _mostrarEnDesarrollo(String modulo) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$modulo en desarrollo...'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
   void _mostrarDialogCerrarSesion() {
     showDialog(
       context: context,
@@ -1076,6 +1262,15 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ConfiguracionScreen()),
+    );
+  }
+
+  void _navegarAGenerarCredenciales() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const GenerarCredencialesScreen(),
+      ),
     );
   }
 
