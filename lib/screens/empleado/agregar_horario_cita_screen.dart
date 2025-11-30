@@ -85,17 +85,40 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
           final docs = snapshot.data?.docs ?? [];
           if (docs.isEmpty) return _buildEmptyState();
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final cita = {
-                ...doc.data() as Map<String, dynamic>,
-                'id': doc.id,
-              };
-              return _buildCitaItem(cita, index, doc);
-            },
+          // Separar citas activas y desactivadas
+          final citasActivas = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return !_esCitaPasada(data['fecha']);
+          }).toList();
+
+          final citasDesactivadas = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _esCitaPasada(data['fecha']);
+          }).toList();
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Sección de citas activas
+                if (citasActivas.isNotEmpty)
+                  _buildSeccionCitas(
+                    'CITAS ACTIVAS',
+                    citasActivas,
+                    Colors.green,
+                  ),
+                // Sección de citas desactivadas
+                if (citasDesactivadas.isNotEmpty)
+                  _buildSeccionCitas(
+                    'CITAS DESACTIVADAS',
+                    citasDesactivadas,
+                    Colors.red,
+                  ),
+                // Mensaje si no hay citas
+                if (citasActivas.isEmpty && citasDesactivadas.isEmpty)
+                  _buildEmptyState(),
+                SizedBox(height: 80), // Espacio para el FAB
+              ],
+            ),
           );
         },
       ),
@@ -135,16 +158,82 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
     );
   }
 
+  Widget _buildSeccionCitas(
+    String titulo,
+    List<DocumentSnapshot> docs,
+    Color color,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                titulo,
+                style: AppTextStyles.appBarTitle.copyWith(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(width: 8),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${docs.length}',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final cita = {...doc.data() as Map<String, dynamic>, 'id': doc.id};
+            return _buildCitaItem(cita, index, doc);
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildCitaItem(
     Map<String, dynamic> cita,
     int index,
     DocumentSnapshot doc,
   ) {
+    // Verificar si la cita está en el pasado
+    final bool esPasada = _esCitaPasada(cita['fecha']);
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: esPasada ? Colors.grey[100] : Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -162,12 +251,12 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
           Container(
             padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
+              color: esPasada ? Colors.grey[300] : Colors.grey[100],
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.calendar_today,
-              color: Colors.grey[600],
+              color: esPasada ? Colors.grey[500] : Colors.grey[600],
               size: 20,
             ),
           ),
@@ -182,7 +271,8 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
                   style: AppTextStyles.mainText.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: esPasada ? Colors.grey[500] : Colors.black87,
+                    decoration: esPasada ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 SizedBox(height: 4),
@@ -191,7 +281,7 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
                   // Provide a safe fallback so the Text widget never receives null.
                   (cita['tipoServicio'] as String?) ?? 'Cita general',
                   style: AppTextStyles.contactText.copyWith(
-                    color: Colors.grey[600],
+                    color: esPasada ? Colors.grey[400] : Colors.grey[600],
                     fontSize: 13,
                   ),
                 ),
@@ -202,8 +292,12 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
           Row(
             children: [
               IconButton(
-                onPressed: () => _editarCitaDoc(doc),
-                icon: Icon(Icons.edit, color: Colors.blue, size: 20),
+                onPressed: esPasada ? null : () => _editarCitaDoc(doc),
+                icon: Icon(
+                  Icons.edit,
+                  color: esPasada ? Colors.grey[400] : Colors.blue,
+                  size: 20,
+                ),
                 padding: EdgeInsets.all(8),
                 constraints: BoxConstraints(minWidth: 40, minHeight: 40),
               ),
@@ -654,5 +748,28 @@ class _AgregarHorarioCitaScreenState extends State<AgregarHorarioCitaScreen> {
     } catch (e) {
       return dt.toLocal().toString();
     }
+  }
+
+  bool _esCitaPasada(dynamic rawFecha) {
+    if (rawFecha == null) return false;
+
+    DateTime? dt;
+    if (rawFecha is Timestamp) {
+      dt = rawFecha.toDate();
+    } else if (rawFecha is DateTime) {
+      dt = rawFecha;
+    } else if (rawFecha is String) {
+      try {
+        dt = DateTime.parse(rawFecha);
+      } catch (e) {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    // Comparar con la fecha y hora actual
+    final now = DateTime.now();
+    return dt.isBefore(now);
   }
 }
