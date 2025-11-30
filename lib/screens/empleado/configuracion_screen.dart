@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../constants.dart';
 import 'gestionar_planes_screen.dart';
 import 'entrenadores_screen.dart';
+import 'asistencia_screen.dart';
 
 class ConfiguracionScreen extends StatefulWidget {
   const ConfiguracionScreen({super.key});
@@ -78,6 +79,19 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
               Icons.calendar_month,
               Colors.deepOrange,
               () => _mostrarEnDesarrollo('Calendario Eventos'),
+            ),
+
+            SizedBox(height: 24),
+
+            // Sección Asistencia
+            _buildSeccionTitulo('Asistencia', Icons.check_circle),
+            SizedBox(height: 16),
+            _buildOpcionCard(
+              'Registrar Asistencia',
+              'Registrar entrada y salida de clientes',
+              Icons.login,
+              Colors.teal,
+              () => _navegarAAsistencia(),
             ),
 
             SizedBox(height: 20),
@@ -184,6 +198,13 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const EntrenadoresScreen()),
+    );
+  }
+
+  void _navegarAAsistencia() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AsistenciaScreen()),
     );
   }
 }

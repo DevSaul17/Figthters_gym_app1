@@ -179,14 +179,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
             children: [
               Expanded(child: _buildCitasHoyCard()),
               SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Clientes Asistentes',
-                  '3',
-                  Icons.how_to_reg,
-                  Colors.green,
-                ),
-              ),
+              Expanded(child: _buildClientesAsistentesCard()),
             ],
           ),
 
@@ -787,6 +780,33 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
           'S/.$montoFormato',
           Icons.attach_money,
           Colors.purple,
+        );
+      },
+    );
+  }
+
+  Widget _buildClientesAsistentesCard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('asistencias').snapshots(),
+      builder: (context, snapshot) {
+        int clientesAsistentes = 0;
+
+        if (snapshot.hasData) {
+          final hoy = DateTime.now();
+          final fechaHoy = DateFormat('yyyy-MM-dd').format(hoy);
+
+          clientesAsistentes = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final fecha = data['fecha'] ?? '';
+            return fecha == fechaHoy;
+          }).length;
+        }
+
+        return _buildStatCard(
+          'Clientes Asistentes',
+          '$clientesAsistentes',
+          Icons.how_to_reg,
+          Colors.green,
         );
       },
     );
