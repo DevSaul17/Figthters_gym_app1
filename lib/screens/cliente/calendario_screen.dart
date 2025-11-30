@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../../constants.dart';
 
 class CalendarioScreen extends StatefulWidget {
@@ -15,39 +17,34 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
   DateTime _currentMonth = DateTime.now();
   String _selectedView = 'mes'; // día, semana, mes
 
-  final Map<DateTime, List<Map<String, dynamic>>> _events = {
-    DateTime(2025, 11, 15): [
-      {
-        'title': 'Entrenamiento de Fuerza',
-        'time': '10:00 AM',
-        'type': 'workout',
-      },
-      {'title': 'Cardio', 'time': '4:00 PM', 'type': 'cardio'},
-    ],
-    DateTime(2025, 11, 18): [
-      {
-        'title': 'Entrenamiento Funcional',
-        'time': '9:00 AM',
-        'type': 'functional',
-      },
-    ],
-    DateTime(2025, 11, 20): [
-      {'title': 'Evaluación Física', 'time': '11:00 AM', 'type': 'evaluation'},
-    ],
-    DateTime(2025, 11, 22): [
-      {'title': 'Rutina de Pecho', 'time': '2:00 PM', 'type': 'workout'},
-    ],
-    DateTime(2025, 11, 25): [
-      {
-        'title': 'Entrenamiento de Piernas',
-        'time': '10:30 AM',
-        'type': 'workout',
-      },
-    ],
-  };
+  final Map<DateTime, List<Map<String, dynamic>>> _events = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarEventos();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.primary,
+          elevation: 0,
+          centerTitle: true,
+          toolbarHeight: 80.0,
+          title: Text(
+            'Calendario',
+            style: AppTextStyles.appBarTitle.copyWith(color: Colors.white),
+          ),
+        ),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -1011,6 +1008,57 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
     return days[weekday - 1];
   }
 
+  // Métodos para guardar y cargar eventos localmente
+  Future<void> _cargarEventos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? eventosJson = prefs.getString(
+        'eventos_${widget.nombreUsuario}',
+      );
+
+      if (eventosJson != null) {
+        final Map<String, dynamic> eventosData = json.decode(eventosJson);
+
+        setState(() {
+          _events.clear();
+          eventosData.forEach((dateString, eventsList) {
+            final DateTime date = DateTime.parse(dateString);
+            _events[date] = List<Map<String, dynamic>>.from(
+              (eventsList as List).map((e) => Map<String, dynamic>.from(e)),
+            );
+          });
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error cargando eventos: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _guardarEventos() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Convertir el mapa de eventos a un formato serializable
+      final Map<String, dynamic> eventosData = {};
+      _events.forEach((date, eventsList) {
+        eventosData[date.toIso8601String()] = eventsList;
+      });
+
+      final String eventosJson = json.encode(eventosData);
+      await prefs.setString('eventos_${widget.nombreUsuario}', eventosJson);
+    } catch (e) {
+      print('Error guardando eventos: $e');
+    }
+  }
+
   void _eliminarEvento(Map<String, dynamic> evento, DateTime fecha) {
     showDialog(
       context: context,
@@ -1051,6 +1099,7 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                   }
                 }
               });
+              _guardarEventos(); // Guardar después de eliminar
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -1193,6 +1242,7 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                       'type': selectedType,
                     });
                   });
+                  _guardarEventos(); // Guardar después de agregar
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
