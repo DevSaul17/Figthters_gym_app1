@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../constants.dart';
 import 'calendario_screen.dart';
 import 'perfil_screen.dart';
+import 'mi_plan_screen.dart';
 import 'widgets/cronometro_widget.dart';
 import 'widgets/temporizador_widget.dart';
 import 'widgets/calculadora_imc_widget.dart';
@@ -286,10 +287,10 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   }
 
   void _navegarAMiPlan(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Función "Mi Plan" en desarrollo...'),
-        backgroundColor: Colors.orange,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MiPlanScreen(nombreUsuario: widget.nombreUsuario),
       ),
     );
   }

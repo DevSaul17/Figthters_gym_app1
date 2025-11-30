@@ -875,6 +875,12 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
             .collection('membresias')
             .add(datosMembresia);
 
+        // Actualizar el cliente con el ID de la membresía
+        await FirebaseFirestore.instance
+            .collection('clientes')
+            .doc(widget.datosCliente['id'])
+            .update({'membresiaId': docRef.id, 'tieneMembresia': true});
+
         if (mounted) {
           _mostrarMensaje('Membresía registrada correctamente', Colors.green);
 
