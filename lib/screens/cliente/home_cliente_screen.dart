@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
 import 'calendario_screen.dart';
 import 'perfil_screen.dart';
@@ -22,7 +23,9 @@ class HomeClienteScreen extends StatefulWidget {
 
 class _HomeClienteScreenState extends State<HomeClienteScreen> {
   int _selectedIndex = 0;
-  final int _rachaDias = 15; // Días consecutivos de entrenamiento
+  String _nombreCompleto = '';
+  int _totalAsistencias = 0;
+  bool _cargandoDatos = true;
 
   final List<Map<String, dynamic>> _carouselItems = [
     {
@@ -58,6 +61,57 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   @override
   void initState() {
     super.initState();
+    _cargarDatosCliente();
+  }
+
+  Future<void> _cargarDatosCliente() async {
+    try {
+      final db = FirebaseFirestore.instance;
+
+      // Obtener clienteId desde credenciales
+      final credencialesSnapshot = await db
+          .collection('credenciales')
+          .where('usuario', isEqualTo: widget.nombreUsuario)
+          .get();
+
+      if (credencialesSnapshot.docs.isNotEmpty) {
+        final clienteId = credencialesSnapshot.docs.first.get('clienteId');
+
+        // Obtener datos del cliente
+        final clienteSnapshot = await db
+            .collection('clientes')
+            .doc(clienteId)
+            .get();
+
+        if (clienteSnapshot.exists && mounted) {
+          final nombre = clienteSnapshot.get('nombre') ?? '';
+          final apellidos = clienteSnapshot.get('apellidos') ?? '';
+          final asistenciasData = clienteSnapshot.get('asistencias');
+
+          // Convertir asistencias al formato correcto
+          int asistencias = 0;
+          if (asistenciasData != null) {
+            if (asistenciasData is int) {
+              asistencias = asistenciasData;
+            } else if (asistenciasData is String) {
+              asistencias = int.tryParse(asistenciasData) ?? 0;
+            } else if (asistenciasData is double) {
+              asistencias = asistenciasData.toInt();
+            }
+          }
+
+          setState(() {
+            _nombreCompleto = '$nombre $apellidos'.trim();
+            _totalAsistencias = asistencias;
+            _cargandoDatos = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _cargandoDatos = false);
+      }
+    }
   }
 
   @override
@@ -174,34 +228,100 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
           // Bienvenida
           Container(
             width: double.infinity,
-            padding: EdgeInsets.all(20),
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              // ignore: deprecated_member_use
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(15),
-              // ignore: deprecated_member_use
-              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                // ignore: deprecated_member_use
+                colors: [AppColors.primary, AppColors.primary.withOpacity(0.7)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  // ignore: deprecated_member_use
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: Offset(0, 6),
+                ),
+              ],
             ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Icon(Icons.person_outline, size: 60, color: AppColors.primary),
-                SizedBox(height: 15),
+                // Ícono en contenedor
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    // ignore: deprecated_member_use
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.person_outline,
+                    size: 36,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 10),
+
+                // Título
                 Text(
                   '¡Bienvenido!',
                   style: AppTextStyles.mainText.copyWith(
-                    fontSize: 24,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: Colors.white,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 8),
-                Text(
-                  widget.nombreUsuario,
-                  style: AppTextStyles.contactText.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
+
+                // Nombre completo con mejor presentación
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    // ignore: deprecated_member_use
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      // ignore: deprecated_member_use
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
                   ),
+                  child: Text(
+                    _cargandoDatos
+                        ? 'Cargando...'
+                        : (_nombreCompleto.isNotEmpty
+                              ? _nombreCompleto
+                              : widget.nombreUsuario),
+                    style: AppTextStyles.mainText.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                SizedBox(height: 10),
+
+                // Mensaje motivacional
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.fitness_center, size: 16, color: Colors.white70),
+                    SizedBox(width: 6),
+                    Text(
+                      'Continúa con tu entrenamiento',
+                      style: AppTextStyles.contactText.copyWith(
+                        fontSize: 12,
+                        color: Colors.white70,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -257,7 +377,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
                 MenuCardWidget(
                   icon: Icons.local_fire_department,
                   title: 'Racha',
-                  subtitle: ' $_rachaDias',
+                  subtitle: '$_totalAsistencias asistencias',
                   onTap: () {}, // Función vacía - no hace nada
                 ),
                 MenuCardWidget(
