@@ -253,6 +253,195 @@ class _GenerarCredencialesScreenState extends State<GenerarCredencialesScreen> {
     _mostrarMensaje('Copiado al portapapeles', Colors.green);
   }
 
+  void _mostrarModalCambiarContrasena(String clienteId, String nombreCliente) {
+    final contraController = TextEditingController();
+    final verificarController = TextEditingController();
+    bool mostrarContra = false;
+    bool mostrarVerificar = false;
+    bool isChanging = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text(
+            'Cambiar Contraseña',
+            style: AppTextStyles.mainText.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.blue.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    nombreCliente,
+                    style: AppTextStyles.mainText.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                SizedBox(height: 20),
+                TextField(
+                  controller: contraController,
+                  obscureText: !mostrarContra,
+                  decoration: InputDecoration(
+                    hintText: 'Nueva contraseña',
+                    prefixIcon: Icon(Icons.lock, color: AppColors.primary),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        mostrarContra ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setStateDialog(() {
+                          mostrarContra = !mostrarContra;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextField(
+                  controller: verificarController,
+                  obscureText: !mostrarVerificar,
+                  decoration: InputDecoration(
+                    hintText: 'Verificar contraseña',
+                    prefixIcon: Icon(Icons.verified, color: AppColors.primary),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        mostrarVerificar
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setStateDialog(() {
+                          mostrarVerificar = !mostrarVerificar;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isChanging
+                  ? null
+                  : () {
+                      contraController.dispose();
+                      verificarController.dispose();
+                      Navigator.pop(context);
+                    },
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isChanging
+                  ? null
+                  : () async {
+                      if (contraController.text.isEmpty) {
+                        _mostrarError('Ingresa la nueva contraseña');
+                        return;
+                      }
+                      if (verificarController.text.isEmpty) {
+                        _mostrarError('Verifica la contraseña');
+                        return;
+                      }
+                      if (contraController.text != verificarController.text) {
+                        _mostrarError('Las contraseñas no coinciden');
+                        return;
+                      }
+                      if (contraController.text.length < 6) {
+                        _mostrarError(
+                          'La contraseña debe tener al menos 6 caracteres',
+                        );
+                        return;
+                      }
+
+                      setStateDialog(() {
+                        isChanging = true;
+                      });
+
+                      try {
+                        final nuevaContrasena = contraController.text;
+                        final nuevaContrasenaHash = sha256
+                            .convert(nuevaContrasena.codeUnits)
+                            .toString();
+
+                        await FirebaseFirestore.instance
+                            .collection('credenciales')
+                            .doc(clienteId)
+                            .update({
+                              'contrasena': nuevaContrasenaHash,
+                              'ultimaActualizacion':
+                                  FieldValue.serverTimestamp(),
+                            });
+
+                        if (mounted) {
+                          _mostrarMensaje(
+                            'Contraseña actualizada exitosamente',
+                            Colors.green,
+                          );
+                          // ignore: use_build_context_synchronously
+                          Navigator.pop(context);
+                          // Recargar credenciales
+                          _cargarCredencialesCreadas();
+                        }
+                      } catch (e) {
+                        _mostrarError('Error al cambiar contraseña: $e');
+                      } finally {
+                        setStateDialog(() {
+                          isChanging = false;
+                        });
+                      }
+                    },
+              icon: Icon(isChanging ? Icons.hourglass_bottom : Icons.check),
+              label: Text(isChanging ? 'Guardando...' : 'Guardar'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -826,6 +1015,19 @@ class _GenerarCredencialesScreenState extends State<GenerarCredencialesScreen> {
                                             ),
                                           ],
                                         ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.edit,
+                                          color: Colors.orange,
+                                          size: 24,
+                                        ),
+                                        onPressed: () {
+                                          _mostrarModalCambiarContrasena(
+                                            credencial['id'],
+                                            '${credencial['nombre']} ${credencial['apellidos']}',
+                                          );
+                                        },
                                       ),
                                     ],
                                   ),
