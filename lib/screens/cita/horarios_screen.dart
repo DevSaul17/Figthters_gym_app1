@@ -90,15 +90,42 @@ class _HorariosScreenState extends State<HorariosScreen> {
                             );
                           }
                           final docs = snapshot.data?.docs ?? [];
-                          if (docs.isEmpty) {
+
+                          // Filtrar horarios vencidos (fecha y hora pasadas)
+                          final now = DateTime.now();
+                          final horariosValidos = docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final rawFecha = data['fecha'];
+
+                            DateTime dt;
+                            if (rawFecha is Timestamp) {
+                              dt = rawFecha.toDate();
+                            } else if (rawFecha is DateTime) {
+                              dt = rawFecha;
+                            } else if (rawFecha is String) {
+                              try {
+                                dt = DateTime.parse(rawFecha);
+                              } catch (e) {
+                                return true; // Si hay error al parsear, mostrar
+                              }
+                            } else {
+                              return true; // Si no hay fecha, mostrar
+                            }
+
+                            // Solo mostrar si la fecha/hora es futura
+                            return dt.isAfter(now);
+                          }).toList();
+
+                          if (horariosValidos.isEmpty) {
                             return Center(
                               child: Text('No hay horarios disponibles'),
                             );
                           }
+
                           return ListView.builder(
-                            itemCount: docs.length,
+                            itemCount: horariosValidos.length,
                             itemBuilder: (context, index) {
-                              final doc = docs[index];
+                              final doc = horariosValidos[index];
                               final data = {
                                 ...doc.data() as Map<String, dynamic>,
                                 'id': doc.id,
