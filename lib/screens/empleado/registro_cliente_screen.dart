@@ -607,7 +607,9 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
           return;
         }
 
-        // Datos del cliente para Firestore
+        // Crear instancia del modelo Cliente
+        // Nota: Cliente usa campos básicos (nombre, email, telefono)
+        // Los datos adicionales se guardan en el Map tradicional por compatibilidad
         final datosCliente = {
           'dni': _dniController.text.trim(),
           'nombre': _nombreController.text.trim(),

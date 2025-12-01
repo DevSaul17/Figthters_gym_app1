@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../constants.dart';
+import '../../models/models.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -12,7 +13,7 @@ class AsistenciaScreen extends StatefulWidget {
 
 class _AsistenciaScreenState extends State<AsistenciaScreen> {
   late TextEditingController _buscadorController;
-  List<Map<String, dynamic>> _clientesEncontrados = [];
+  List<Cliente> _clientesEncontrados = [];
   bool _buscando = false;
 
   @override
@@ -45,7 +46,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           .get();
 
       final queryLower = query.toLowerCase();
-      final resultados = <Map<String, dynamic>>[];
+      final resultados = <Cliente>[];
 
       for (var doc in clientesSnapshot.docs) {
         final data = doc.data();
@@ -56,7 +57,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         if (nombre.contains(queryLower) ||
             apellidos.contains(queryLower) ||
             dni.contains(queryLower)) {
-          resultados.add({'id': doc.id, ...data});
+          // Crear modelo Cliente con campos básicos
+          // Usamos el Map directo por compatibilidad con campos extendidos
+          resultados.add(
+            Cliente(
+              id: doc.id,
+              nombre: '${data['nombre'] ?? ''} ${data['apellidos'] ?? ''}',
+              email: data['email'] ?? '',
+              telefono: data['celular'] ?? '',
+              fechaRegistro: data['creadoEn'] is Timestamp
+                  ? (data['creadoEn'] as Timestamp).toDate()
+                  : DateTime.now(),
+              direccion:
+                  data['dni'] ?? '', // Guardamos DNI en dirección temporalmente
+            ),
+          );
         }
       }
 
@@ -75,28 +90,34 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     }
   }
 
-  Future<void> _registrarAsistencia(
-    String clienteId,
-    String nombre,
-    String apellidos,
-    String dni,
-  ) async {
+  Future<void> _registrarAsistencia(String clienteId, String nombre) async {
     try {
-      final ahora = DateTime.now();
-      final fecha = DateFormat('yyyy-MM-dd').format(ahora);
-      final hora = DateFormat('HH:mm:ss').format(ahora);
+      // Crear modelo Asistencia
+      final asistencia = Asistencia(
+        id: '', // Se asignará automáticamente
+        clienteId: clienteId,
+        fechaHoraEntrada: DateTime.now(),
+      );
 
-      await FirebaseFirestore.instance.collection('asistencias').add({
-        'clienteId': clienteId,
-        'clienteNombre': '$nombre $apellidos',
-        'clienteDni': dni,
-        'fecha': fecha,
-        'hora': hora,
-        'fechaRegistro': Timestamp.now(),
-      });
+      // Guardar usando el modelo (datos básicos)
+      final asistenciaData = asistencia.toJson();
+
+      // Agregar campos adicionales por compatibilidad
+      final ahora = DateTime.now();
+      asistenciaData['clienteNombre'] = nombre;
+      asistenciaData['fecha'] = DateFormat('yyyy-MM-dd').format(ahora);
+      asistenciaData['hora'] = DateFormat('HH:mm:ss').format(ahora);
+      asistenciaData['fechaRegistro'] = Timestamp.now();
+
+      await FirebaseFirestore.instance
+          .collection('asistencias')
+          .add(asistenciaData);
 
       if (mounted) {
-        _showSnackBar('Asistencia registrada: $nombre - $hora', Colors.green);
+        _showSnackBar(
+          'Asistencia registrada: $nombre - ${asistencia.horaEntrada}',
+          Colors.green,
+        );
       }
 
       _buscadorController.clear();
@@ -123,12 +144,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     }
   }
 
-  Widget _buildClienteCard(Map<String, dynamic> cliente) {
-    final nombre = cliente['nombre'] ?? '';
-    final apellidos = cliente['apellidos'] ?? '';
-    final dni = cliente['dni'] ?? '';
-    final celular = cliente['celular'] ?? '';
-    final edad = cliente['edad'] ?? '';
+  Widget _buildClienteCard(Cliente cliente) {
+    final dni =
+        cliente.direccion ?? ''; // DNI guardado temporalmente en direccion
+    final celular = cliente.telefono;
+
+    // Edad - necesitariamos calcularla o guardarla en notas
+    final edad = cliente.notas ?? '';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -164,7 +186,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '$nombre $apellidos',
+                      cliente.nombre,
                       style: AppTextStyles.mainText.copyWith(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -211,8 +233,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () =>
-                  _registrarAsistencia(cliente['id'], nombre, apellidos, dni),
+              onPressed: () => _registrarAsistencia(cliente.id, cliente.nombre),
               icon: const Icon(Icons.check_circle),
               label: const Text('Marcar Asistencia de Hoy'),
               style: ElevatedButton.styleFrom(

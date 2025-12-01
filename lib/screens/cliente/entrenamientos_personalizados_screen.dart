@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
+import '../../models/models.dart';
 
 class EntrenamientosPersonalizadosScreen extends StatefulWidget {
   final String nombreUsuario;
@@ -729,24 +730,37 @@ class _EntrenamientosPersonalizadosScreenState
               .limit(1)
               .get();
 
-          final datosEntrenamiento = {
-            'clienteId': clienteId,
-            'nombreCliente': '$nombreCliente $apellidosCliente'.trim(),
-            'rutinaSemanal': _rutinaSemanal,
-            'fechaActualizacion': Timestamp.now(),
-            'activo': true,
-          };
+          // Crear modelo Entrenamiento
+          final entrenamiento = Entrenamiento(
+            id: entrenamientoSnapshot.docs.isNotEmpty
+                ? entrenamientoSnapshot.docs.first.id
+                : '',
+            clienteId: clienteId,
+            nombreRutina: 'Rutina de $nombreCliente',
+            rutinasPorDia: _rutinaSemanal,
+            fechaCreacion: entrenamientoSnapshot.docs.isNotEmpty
+                ? (entrenamientoSnapshot.docs.first.get('fechaCreacion')
+                          as Timestamp)
+                      .toDate()
+                : DateTime.now(),
+            fechaActualizacion: DateTime.now(),
+          );
+
+          // Convertir a JSON y agregar campos adicionales por compatibilidad
+          final datosEntrenamiento = entrenamiento.toJson();
+          datosEntrenamiento['nombreCliente'] =
+              '$nombreCliente $apellidosCliente'.trim();
+          datosEntrenamiento['rutinaSemanal'] = _rutinaSemanal;
+          datosEntrenamiento['activo'] = true;
 
           if (entrenamientoSnapshot.docs.isNotEmpty) {
             // Actualizar documento existente
-            final docId = entrenamientoSnapshot.docs.first.id;
             await db
                 .collection('entrenamientos')
-                .doc(docId)
+                .doc(entrenamiento.id)
                 .update(datosEntrenamiento);
           } else {
             // Crear nuevo documento
-            datosEntrenamiento['fechaCreacion'] = Timestamp.now();
             await db.collection('entrenamientos').add(datosEntrenamiento);
           }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
-import 'home_gym_screen.dart';
 
 class PagosScreen extends StatefulWidget {
   final Map<String, String> datosCliente;
@@ -475,13 +474,8 @@ class _PagosScreenState extends State<PagosScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar dialog
-              // Navegar a home_gym_screen
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (context) => HomeGymScreen(nombreEmpleado: ''),
-                ),
-                (route) => false,
-              );
+              // Regresar al home eliminando todas las pantallas anteriores
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
             child: Text('Finalizar'),
           ),

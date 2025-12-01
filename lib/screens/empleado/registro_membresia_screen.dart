@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
+import '../../models/models.dart';
 import 'gestionar_planes_screen.dart';
 import 'pagos_screen.dart';
 
@@ -848,27 +849,32 @@ class _RegistroMembresiaScreenState extends State<RegistroMembresiaScreen> {
           (plan) => plan.nombre == _planSeleccionado,
         );
 
-        // Crear datos de la membresía
-        final datosMembresia = {
-          'clienteId': widget.datosCliente['id'],
-          'clienteDni': widget.datosCliente['dni'],
-          'clienteNombre':
-              '${widget.datosCliente['nombre']} ${widget.datosCliente['apellidos']}',
-          'planId': planSeleccionado.id,
-          'planNombre': planSeleccionado.nombre,
-          'planDescripcion': planSeleccionado.descripcion,
-          'frecuencia': _frecuencia,
-          'tiempo': _tiempo,
-          'fechaInicio': _fechaInicio,
-          'fechaFin': _fechaFin,
-          'horaEntrenamiento':
-              '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}',
-          'diasSeleccionados': _diasSeleccionados,
-          'fechaCreacion': FieldValue.serverTimestamp(),
-          'estado': 'pendiente_pago',
-          'activa': true,
-          'creadoPor': 'empleado',
-        };
+        // Crear modelo Membresia
+        final membresia = Membresia(
+          id: '',
+          clienteId: widget.datosCliente['id'] ?? '',
+          planId: planSeleccionado.id ?? '',
+          fechaInicio: _fechaInicio,
+          fechaFin: _fechaFin,
+          estado: 'pendiente_pago',
+          montoTotal: 0, // Se actualizara en pantalla de pagos
+        );
+
+        // Convertir a JSON y agregar campos adicionales por compatibilidad
+        final datosMembresia = membresia.toJson();
+        datosMembresia['clienteDni'] = widget.datosCliente['dni'];
+        datosMembresia['clienteNombre'] =
+            '${widget.datosCliente['nombre']} ${widget.datosCliente['apellidos']}';
+        datosMembresia['planNombre'] = planSeleccionado.nombre;
+        datosMembresia['planDescripcion'] = planSeleccionado.descripcion;
+        datosMembresia['frecuencia'] = _frecuencia;
+        datosMembresia['tiempo'] = _tiempo;
+        datosMembresia['horaEntrenamiento'] =
+            '${_hora.hour.toString().padLeft(2, '0')}:${_hora.minute.toString().padLeft(2, '0')}';
+        datosMembresia['diasSeleccionados'] = _diasSeleccionados;
+        datosMembresia['fechaCreacion'] = FieldValue.serverTimestamp();
+        datosMembresia['activa'] = true;
+        datosMembresia['creadoPor'] = 'empleado';
 
         // Guardar membresía en Firestore
         final docRef = await FirebaseFirestore.instance
