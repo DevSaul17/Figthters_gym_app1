@@ -13,6 +13,10 @@ class Membresia {
   final DateTime? fechaPago;
   final String? metodoPago;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Membresia({
     required this.id,
     required this.clienteId,
@@ -23,6 +27,8 @@ class Membresia {
     required this.montoTotal,
     this.fechaPago,
     this.metodoPago,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -43,6 +49,10 @@ class Membresia {
           ? (json['fechaPago'] as Timestamp).toDate()
           : null,
       metodoPago: json['metodoPago'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -57,6 +67,9 @@ class Membresia {
       'montoTotal': montoTotal,
       if (fechaPago != null) 'fechaPago': Timestamp.fromDate(fechaPago!),
       if (metodoPago != null) 'metodoPago': metodoPago,
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 
@@ -71,6 +84,8 @@ class Membresia {
     double? montoTotal,
     DateTime? fechaPago,
     String? metodoPago,
+    DateTime? ultimaModificacion,
+    int? version,
   }) {
     return Membresia(
       id: id ?? this.id,
@@ -82,6 +97,8 @@ class Membresia {
       montoTotal: montoTotal ?? this.montoTotal,
       fechaPago: fechaPago ?? this.fechaPago,
       metodoPago: metodoPago ?? this.metodoPago,
+      ultimaModificacion: ultimaModificacion ?? this.ultimaModificacion,
+      version: version ?? this.version,
     );
   }
 

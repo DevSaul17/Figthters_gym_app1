@@ -9,12 +9,18 @@ class Asistencia {
   final DateTime? fechaHoraSalida;
   final String? notas;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Asistencia({
     required this.id,
     required this.clienteId,
     required this.fechaHoraEntrada,
     this.fechaHoraSalida,
     this.notas,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -29,6 +35,10 @@ class Asistencia {
           ? (json['fechaHoraSalida'] as Timestamp).toDate()
           : null,
       notas: json['notas'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -40,6 +50,9 @@ class Asistencia {
       if (fechaHoraSalida != null)
         'fechaHoraSalida': Timestamp.fromDate(fechaHoraSalida!),
       if (notas != null) 'notas': notas,
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 

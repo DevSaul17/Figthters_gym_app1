@@ -12,6 +12,10 @@ class Plan {
   final bool activo;
   final DateTime? fechaCreacion;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Plan({
     required this.id,
     required this.nombre,
@@ -21,6 +25,8 @@ class Plan {
     required this.beneficios,
     this.activo = true,
     this.fechaCreacion,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -38,6 +44,10 @@ class Plan {
       fechaCreacion: json['fechaCreacion'] is Timestamp
           ? (json['fechaCreacion'] as Timestamp).toDate()
           : null,
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -52,6 +62,9 @@ class Plan {
       'activo': activo,
       if (fechaCreacion != null)
         'fechaCreacion': Timestamp.fromDate(fechaCreacion!),
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 

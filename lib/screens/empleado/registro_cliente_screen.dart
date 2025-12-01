@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
 import 'registro_membresia_screen.dart';
+import '../../services/sync_service.dart';
 
 class RegistroClienteScreen extends StatefulWidget {
   const RegistroClienteScreen({super.key});
@@ -591,6 +592,19 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
       });
 
       try {
+        // Validar conectividad antes de operación crítica
+        final syncService = SyncService();
+        final isOnline = await syncService.validateConnectivity(
+          operationName: 'Registrar nuevo cliente',
+        );
+
+        if (!isOnline && mounted) {
+          _mostrarMensaje(
+            '⚠️ Sin conexión. El cliente se sincronizará automáticamente al reconectar.',
+            Colors.orange,
+          );
+        }
+
         // Verificar si el cliente ya existe por DNI
         final existeCliente = await FirebaseFirestore.instance
             .collection('clientes')
@@ -627,10 +641,13 @@ class _RegistroClienteScreenState extends State<RegistroClienteScreen> {
           'actualizadoEn': FieldValue.serverTimestamp(),
         };
 
+        // Agregar campos de sincronización
+        final datosClienteSync = syncService.addSyncFields(datosCliente);
+
         // Guardar en Firestore
         final docRef = await FirebaseFirestore.instance
             .collection('clientes')
-            .add(datosCliente);
+            .add(datosClienteSync);
 
         if (mounted) {
           _mostrarMensaje(

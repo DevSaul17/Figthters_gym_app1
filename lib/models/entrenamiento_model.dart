@@ -11,6 +11,10 @@ class Entrenamiento {
   final DateTime? fechaActualizacion;
   final String? observaciones;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Entrenamiento({
     required this.id,
     required this.clienteId,
@@ -19,6 +23,8 @@ class Entrenamiento {
     required this.fechaCreacion,
     this.fechaActualizacion,
     this.observaciones,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -53,6 +59,10 @@ class Entrenamiento {
           ? (json['fechaActualizacion'] as Timestamp).toDate()
           : null,
       observaciones: json['observaciones'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 

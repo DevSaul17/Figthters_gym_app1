@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
 import 'constants.dart';
 import 'widgets/connectivity_wrapper.dart';
+import 'services/sync_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,12 @@ Future<void> main() async {
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
     debugPrint('Firestore offline persistence enabled');
+
+    // Iniciar listener de auto-sincronización al reconectar
+    // ignore: unused_local_variable
+    final syncService = SyncService();
+    // syncService.startAutoSyncOnReconnect();  // Comentado temporalmente - Firestore maneja sync automáticamente
+    debugPrint('SyncService initialized');
 
     // Sign in anonymously so Firestore operations work when rules require auth
     try {

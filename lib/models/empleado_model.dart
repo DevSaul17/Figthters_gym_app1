@@ -14,6 +14,10 @@ class Empleado {
   final List<String>? horariosDisponibles;
   final String? notas;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Empleado({
     required this.id,
     required this.nombre,
@@ -25,6 +29,8 @@ class Empleado {
     this.especialidad,
     this.horariosDisponibles,
     this.notas,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -44,6 +50,10 @@ class Empleado {
           ? List<String>.from(json['horariosDisponibles'] as List)
           : null,
       notas: json['notas'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -60,6 +70,9 @@ class Empleado {
       if (horariosDisponibles != null)
         'horariosDisponibles': horariosDisponibles,
       if (notas != null) 'notas': notas,
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 

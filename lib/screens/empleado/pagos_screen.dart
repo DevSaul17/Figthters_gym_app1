@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants.dart';
+import '../../services/sync_service.dart';
+import '../../models/models.dart';
 
 class PagosScreen extends StatefulWidget {
   final Map<String, String> datosCliente;
@@ -370,25 +372,51 @@ class _PagosScreenState extends State<PagosScreen> {
       try {
         final monto = double.parse(_montoController.text);
 
-        // Crear datos del pago
-        final datosPago = {
-          'membresiaId': widget.membresiaId,
-          'clienteId': widget.datosCliente['id'],
+        // Validar conectividad antes de operación crítica
+        final syncService = SyncService();
+        final isOnline = await syncService.validateConnectivity(
+          operationName: 'Procesar pago de membresía',
+        );
+
+        if (!isOnline && mounted) {
+          _mostrarMensaje(
+            '⚠️ Sin conexión. El pago se sincronizará automáticamente al reconectar.',
+            Colors.orange,
+          );
+        }
+
+        // Crear modelo de Pago con campos de sincronización
+        final pago = Pago(
+          id: '', // Se generará automáticamente
+          clienteId: widget.datosCliente['id'] ?? '',
+          membresiaId: widget.membresiaId,
+          monto: monto,
+          fechaPago: DateTime.now(),
+          metodoPago: _metodoPago,
+          concepto: 'Pago de membresía - ${widget.planSeleccionado}',
+          referencia: widget.membresiaId,
+          notas:
+              'Periodo: ${widget.tiempo} mes${widget.tiempo > 1 ? 'es' : ''}',
+        );
+
+        // Convertir a JSON y agregar campos de compatibilidad
+        final datosPago = pago.toJson();
+        datosPago.addAll({
           'clienteDni': widget.datosCliente['dni'],
           'clienteNombre':
               '${widget.datosCliente['nombre']} ${widget.datosCliente['apellidos']}',
           'planSeleccionado': widget.planSeleccionado,
-          'monto': monto,
-          'metodoPago': _metodoPago,
-          'fechaPago': FieldValue.serverTimestamp(),
           'estado': 'completado',
           'tipo': 'membresia',
           'periodo': '${widget.tiempo} mes${widget.tiempo > 1 ? 'es' : ''}',
           'creadoPor': 'empleado',
-        };
+        });
 
-        // Registrar pago en Firestore
-        await FirebaseFirestore.instance.collection('pagos').add(datosPago);
+        // Agregar campos de sincronización
+        final datosPagoSync = syncService.addSyncFields(datosPago);
+
+        // Registrar pago en Firestore (funcionará offline gracias a persistencia)
+        await FirebaseFirestore.instance.collection('pagos').add(datosPagoSync);
 
         // Actualizar estado de la membresía si existe el ID
         if (widget.membresiaId != null) {

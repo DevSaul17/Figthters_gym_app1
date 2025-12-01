@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../constants.dart';
 import '../../models/models.dart';
+import '../../services/sync_service.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -92,6 +93,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   Future<void> _registrarAsistencia(String clienteId, String nombre) async {
     try {
+      // Validar conectividad antes de operación crítica
+      final syncService = SyncService();
+      final isOnline = await syncService.validateConnectivity(
+        operationName: 'Registrar asistencia de cliente',
+      );
+
+      if (!isOnline && mounted) {
+        _showSnackBar(
+          '⚠️ Sin conexión. La asistencia se sincronizará automáticamente.',
+          Colors.orange,
+        );
+      }
+
       // Crear modelo Asistencia
       final asistencia = Asistencia(
         id: '', // Se asignará automáticamente
@@ -109,9 +123,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       asistenciaData['hora'] = DateFormat('HH:mm:ss').format(ahora);
       asistenciaData['fechaRegistro'] = Timestamp.now();
 
+      // Agregar campos de sincronización
+      final asistenciaDataSync = syncService.addSyncFields(asistenciaData);
+
       await FirebaseFirestore.instance
           .collection('asistencias')
-          .add(asistenciaData);
+          .add(asistenciaDataSync);
 
       if (mounted) {
         _showSnackBar(

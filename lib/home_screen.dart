@@ -3,6 +3,7 @@ import 'constants.dart';
 import 'screens/cita/horarios_screen.dart';
 import 'screens/cliente/iniciar_sesion_screen.dart';
 import 'screens/empleado/login_empleado_screen.dart';
+import 'widgets/pending_operations_widget.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -28,6 +29,12 @@ class HomeScreen extends StatelessWidget {
             fontSize: isTablet ? 28 : null,
           ),
         ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: PendingOperationsBadge(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

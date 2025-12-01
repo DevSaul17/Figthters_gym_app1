@@ -11,6 +11,10 @@ class Cliente {
   final String? direccion;
   final String? notas;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Cliente({
     required this.id,
     required this.nombre,
@@ -19,6 +23,8 @@ class Cliente {
     required this.fechaRegistro,
     this.direccion,
     this.notas,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia de Cliente desde un documento de Firestore.
@@ -36,6 +42,10 @@ class Cliente {
           : DateTime.now(),
       direccion: json['direccion'],
       notas: json['notas'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -49,6 +59,9 @@ class Cliente {
       'fechaRegistro': Timestamp.fromDate(fechaRegistro),
       if (direccion != null) 'direccion': direccion,
       if (notas != null) 'notas': notas,
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 
@@ -62,6 +75,8 @@ class Cliente {
     DateTime? fechaRegistro,
     String? direccion,
     String? notas,
+    DateTime? ultimaModificacion,
+    int? version,
   }) {
     return Cliente(
       id: id ?? this.id,
@@ -71,6 +86,8 @@ class Cliente {
       fechaRegistro: fechaRegistro ?? this.fechaRegistro,
       direccion: direccion ?? this.direccion,
       notas: notas ?? this.notas,
+      ultimaModificacion: ultimaModificacion ?? this.ultimaModificacion,
+      version: version ?? this.version,
     );
   }
 

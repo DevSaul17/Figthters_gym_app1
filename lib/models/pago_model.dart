@@ -13,6 +13,10 @@ class Pago {
   final String? referencia;
   final String? notas;
 
+  // Campos de sincronización
+  final DateTime? ultimaModificacion;
+  final int version;
+
   Pago({
     required this.id,
     required this.clienteId,
@@ -23,6 +27,8 @@ class Pago {
     required this.concepto,
     this.referencia,
     this.notas,
+    this.ultimaModificacion,
+    this.version = 1,
   });
 
   /// Constructor factory para crear una instancia desde un documento de Firestore.
@@ -39,6 +45,10 @@ class Pago {
       concepto: json['concepto'] ?? '',
       referencia: json['referencia'],
       notas: json['notas'],
+      ultimaModificacion: json['ultimaModificacion'] is Timestamp
+          ? (json['ultimaModificacion'] as Timestamp).toDate()
+          : null,
+      version: json['version'] ?? 1,
     );
   }
 
@@ -53,6 +63,9 @@ class Pago {
       'concepto': concepto,
       if (referencia != null) 'referencia': referencia,
       if (notas != null) 'notas': notas,
+      if (ultimaModificacion != null)
+        'ultimaModificacion': Timestamp.fromDate(ultimaModificacion!),
+      'version': version,
     };
   }
 
