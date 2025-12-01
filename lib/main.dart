@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_screen.dart';
 import 'constants.dart';
+import 'widgets/connectivity_wrapper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp();
+
+    // Habilitar persistencia offline de Firestore
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint('Firestore offline persistence enabled');
+
     // Sign in anonymously so Firestore operations work when rules require auth
     try {
       await FirebaseAuth.instance.signInAnonymously();
@@ -32,7 +42,7 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: AppTexts.appTitle,
       theme: ThemeData(primarySwatch: Colors.red, fontFamily: 'Arial'),
-      home: const HomeScreen(),
+      home: const ConnectivityWrapper(child: HomeScreen()),
       debugShowCheckedModeBanner: false,
     );
   }
