@@ -360,13 +360,7 @@ class _GenerarCredencialesScreenState extends State<GenerarCredencialesScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: isChanging
-                  ? null
-                  : () {
-                      contraController.dispose();
-                      verificarController.dispose();
-                      Navigator.pop(context);
-                    },
+              onPressed: isChanging ? null : () => Navigator.pop(context),
               child: Text('Cancelar'),
             ),
             ElevatedButton.icon(

@@ -502,8 +502,11 @@ class _PagosScreenState extends State<PagosScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar dialog
-              // Regresar al home eliminando todas las pantallas anteriores
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              // Retornar a RegistroMembresiaScreen indicando que el pago se completó
+              Navigator.pop(context, {
+                'pagoCompletado': true,
+                'membresiaId': widget.membresiaId,
+              });
             },
             child: Text('Finalizar'),
           ),

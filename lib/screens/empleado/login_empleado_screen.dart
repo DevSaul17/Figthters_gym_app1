@@ -386,6 +386,13 @@ class _LoginEmpleadoScreenState extends State<LoginEmpleadoScreen> {
             ),
           );
         }
+      } finally {
+        // Siempre resetear el estado de carga
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
