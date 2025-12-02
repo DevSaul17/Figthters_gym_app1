@@ -477,7 +477,7 @@ class _CalculadoraIMCWidgetState extends State<CalculadoraIMCWidget> {
 
   String _obtenerRecomendacion(double imc) {
     if (imc < 18.5) {
-      return 'Considera consultar con un profesional de la salud para evaluar tu peso y nutrición.';
+      return 'Considera consultar con un profesional de la salud para evaluar tu peso y alimentación.';
     } else if (imc < 25.0) {
       return '¡Excelente! Mantienes un peso saludable. Continúa con una dieta balanceada y ejercicio regular.';
     } else if (imc < 30.0) {

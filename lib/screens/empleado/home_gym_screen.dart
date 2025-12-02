@@ -24,6 +24,14 @@ class HomeGymScreen extends StatefulWidget {
 class _HomeGymScreenState extends State<HomeGymScreen> {
   int _selectedIndex = 0;
   final FirestoreService _firestore = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -276,6 +284,50 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
           ),
           SizedBox(height: 16),
 
+          // Buscador
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar por DNI o nombre...',
+                hintStyle: TextStyle(color: Colors.grey[400]),
+                prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.toLowerCase();
+                });
+              },
+            ),
+          ),
+          SizedBox(height: 16),
+
           // Lista de clientes con membresías
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -396,8 +448,26 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                       return clienteIds.contains(doc.id);
                     }).toList();
 
+                    // Filtrar por búsqueda
+                    final clientesFiltrados = clienteDocs.where((doc) {
+                      if (_searchQuery.isEmpty) return true;
+
+                      final data = doc.data() as Map<String, dynamic>;
+                      final nombre = (data['nombre'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final apellidos = (data['apellidos'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final dni = (data['dni'] ?? '').toString().toLowerCase();
+                      final nombreCompleto = '$nombre $apellidos';
+
+                      return nombreCompleto.contains(_searchQuery) ||
+                          dni.contains(_searchQuery);
+                    }).toList();
+
                     // Ordenar por fecha de creación (más recientes primero)
-                    clienteDocs.sort((a, b) {
+                    clientesFiltrados.sort((a, b) {
                       final aData = a.data() as Map<String, dynamic>;
                       final bData = b.data() as Map<String, dynamic>;
                       final aTimestamp = aData['creadoEn'] as Timestamp?;
@@ -410,11 +480,43 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                       return bTimestamp.compareTo(aTimestamp);
                     });
 
+                    // Mostrar mensaje si no hay resultados de búsqueda
+                    if (clientesFiltrados.isEmpty && _searchQuery.isNotEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 80,
+                              color: Colors.grey[400],
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'No se encontraron resultados',
+                              style: AppTextStyles.mainText.copyWith(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Intenta con otro DNI o nombre',
+                              style: AppTextStyles.contactText.copyWith(
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     return ListView.separated(
-                      itemCount: clienteDocs.length,
+                      itemCount: clientesFiltrados.length,
                       separatorBuilder: (_, __) => SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        final clienteDoc = clienteDocs[index];
+                        final clienteDoc = clientesFiltrados[index];
                         final clienteData =
                             clienteDoc.data() as Map<String, dynamic>;
 

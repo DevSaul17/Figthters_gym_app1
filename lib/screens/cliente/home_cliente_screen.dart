@@ -36,11 +36,11 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
       'onTap': 'entrenamientos',
     },
     {
-      'title': 'Nutrición',
-      'subtitle': 'Guías y consejos nutricionales',
+      'title': 'Alimentación',
+      'subtitle': 'Tips y consejos alimenticios',
       'icon': Icons.restaurant,
       'color': Colors.green,
-      'onTap': 'nutricion',
+      'onTap': 'alimentacion',
     },
     {
       'title': 'Comunidad',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../calendario_screen.dart';
 import '../entrenamientos_personalizados_screen.dart';
+import '../alimentacion_screen.dart';
 
 class NavigationService {
   static void navegarACalendario(BuildContext context, String nombreUsuario) {
@@ -25,11 +26,11 @@ class NavigationService {
     );
   }
 
-  static void navegarANutricion(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Función "Nutrición" en desarrollo...'),
-        backgroundColor: Colors.orange,
+  static void navegarAAlimentacion(BuildContext context, String nombreUsuario) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AlimentacionScreen(nombreUsuario: nombreUsuario),
       ),
     );
   }
@@ -79,8 +80,8 @@ class NavigationService {
       case 'entrenamientos':
         navegarAEntrenamientos(context, nombreUsuario);
         break;
-      case 'nutricion':
-        navegarANutricion(context);
+      case 'alimentacion':
+        navegarAAlimentacion(context, nombreUsuario);
         break;
       case 'logros':
         navegarALogros(context);
